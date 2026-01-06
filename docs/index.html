@@ -24,6 +24,7 @@
     font-weight:800;
     line-height:1.15;
     max-width: calc(100% - 20px);
+    white-space: pre-line;
   }
   .hint{
     position:absolute; right:10px; top:10px;
@@ -37,13 +38,36 @@
 
   .controls{
     position:absolute; left:0; right:0; bottom:0;
-    display:flex; justify-content:space-between; align-items:flex-end;
-    padding:14px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:14px;
+    pointer-events:auto;
+
+    padding: 14px;
+    padding-left:  calc(14px + env(safe-area-inset-left));
+    padding-right: calc(14px + env(safe-area-inset-right));
+    padding-bottom:calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .pad, .btnCol{
+    display:grid;
     gap:12px;
     pointer-events:auto;
   }
-  .pad, .btnCol { display:flex; gap:12px; }
-  .btnCol { flex-wrap:wrap; justify-content:flex-end; max-width: 360px; }
+
+  .pad{
+    grid-template-columns: 72px 72px;
+    grid-template-rows: 72px 72px;
+  }
+  .btnCol{
+    grid-template-columns: 72px 72px;
+    grid-template-rows: 72px 72px;
+    justify-content:end;
+  }
+
+  .wide{ grid-column: 1 / span 2; }
+
   .btn{
     width:72px; height:72px; border-radius:18px;
     background: rgba(255,255,255,.10);
@@ -57,6 +81,53 @@
   }
   .btn:active { transform: translateY(1px); }
 
+  /* ===== Upgrade Modal ===== */
+  .modal{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(0,0,0,.55);
+    pointer-events:auto;
+    padding: 18px;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+  }
+  .modal[hidden]{ display:none; }
+  .panel{
+    width:min(560px, 94vw);
+    background: rgba(15,18,35,.92);
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 18px;
+    padding: 16px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 18px 50px rgba(0,0,0,.45);
+  }
+  .title{ font-weight: 950; font-size: 20px; margin-bottom: 6px; }
+  .sub{ opacity:.9; font-weight:800; margin-bottom: 12px; }
+  .sub2{ opacity:.7; font-size: 12px; margin-top: 10px; font-weight:800; }
+  .choices{
+    display:grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  @media (min-width: 560px){
+    .choices{ grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .upg{
+    border-radius: 16px;
+    padding: 12px;
+    background: rgba(255,255,255,.10);
+    border: 1px solid rgba(255,255,255,.18);
+    color:#fff;
+    cursor:pointer;
+    user-select:none;
+    pointer-events:auto;
+  }
+  .upg:active{ transform: translateY(1px); }
+  .upg .n{ font-weight: 950; margin-bottom: 4px; }
+  .upg .d{ opacity:.88; font-weight: 800; font-size: 12px; line-height:1.25; }
+  .upg .k{ opacity:.65; font-size: 12px; margin-top: 6px; font-weight:950; }
+
+  /* Force landscape layout */
   @media screen and (orientation: portrait) {
     body::before {
       content: "Rotate your device ↻";
@@ -74,6 +145,7 @@
   }
 </style>
 </head>
+
 <body>
 <div id="wrap">
   <canvas id="c"></canvas>
@@ -86,16 +158,30 @@
       R restart
     </div>
 
+    <!-- UPGRADE MODAL -->
+    <div class="modal" id="upgradeModal" hidden>
+      <div class="panel">
+        <div class="title" id="upgradeTitle">Level Complete!</div>
+        <div class="sub" id="upgradeSub">Pick your upgrade.</div>
+        <div class="choices" id="upgradeChoices"></div>
+        <div class="sub2" id="upgradeTip">Tip: press 1 / 2 / 3 on keyboard (or tap a card).</div>
+      </div>
+    </div>
+
+    <!-- Mobile Controls -->
     <div class="controls">
+      <!-- LEFT THUMB: move + jump -->
       <div class="pad">
+        <div class="btn wide" id="btnJump">JUMP</div>
         <div class="btn" id="btnLeft">◀</div>
         <div class="btn" id="btnRight">▶</div>
       </div>
+
+      <!-- RIGHT THUMB: skills + swing -->
       <div class="btnCol">
-        <div class="btn" id="btnJump">JUMP</div>
-        <div class="btn" id="btnSwing">SWING</div>
         <div class="btn" id="btnVert">VERT</div>
         <div class="btn" id="btnHorz">HORZ</div>
+        <div class="btn wide" id="btnSwing">SWING</div>
       </div>
     </div>
   </div>
@@ -227,22 +313,6 @@
   bindTap(document.getElementById("btnVert"), "skillV");
   bindTap(document.getElementById("btnHorz"), "skillH");
 
-  window.addEventListener("keydown", (e) => {
-    const k = e.key.toLowerCase();
-    if (k === "a" || k === "arrowleft") input.left = true;
-    if (k === "d" || k === "arrowright") input.right = true;
-    if (k === " ") input.jump = true;
-    if (k === "j") input.swing = true;
-    if (k === "k") input.skillV = true;
-    if (k === "l") input.skillH = true;
-    if (k === "r") resetRun();
-  });
-  window.addEventListener("keyup", (e) => {
-    const k = e.key.toLowerCase();
-    if (k === "a" || k === "arrowleft") input.left = false;
-    if (k === "d" || k === "arrowright") input.right = false;
-  });
-
   // ===== Game state =====
   const topbar = document.getElementById("topbar");
 
@@ -275,12 +345,25 @@
     shield: 0,
   };
 
+  // ===== Upgrades (per-level) =====
+  const upgrades = {
+    hitboxBonus: 0,          // increases swingW/swingH
+    cdMul: 1.0,              // skill cooldown multiplier
+    perfectBonus: 0.00,      // adds to perfect window
+    skillDamageBonus: 0,     // +dmg to skills
+
+    autoPitchCount: 0,       // friendly projectiles per volley
+    autoPitchInterval: 5.0,  // seconds
+    autoPitchT: 0,
+  };
+
+  const shots = []; // friendly projectiles
+
   // Levels/objectives
   let level = 1;
   let levelKills = 0;
   let levelTime = 0;
   let levelBannerT = 1.4;
-  let betweenLevelsT = 0;
 
   const LEVELS = [
     { type:"kills", target:8 },
@@ -311,6 +394,182 @@
   function getTheme(lv){
     return (lv >= 6) ? "emoji" : "alley";
   }
+
+  // ===== Upgrade Modal UI =====
+  const upgradeModal = document.getElementById("upgradeModal");
+  const upgradeChoicesEl = document.getElementById("upgradeChoices");
+  const upgradeTitle = document.getElementById("upgradeTitle");
+  const upgradeSub = document.getElementById("upgradeSub");
+  const upgradeTip = document.getElementById("upgradeTip");
+
+  let upgradeOpen = false;
+  let pendingNextLevel = null;
+
+  const UPGRADE_CATALOG = {
+    // the two you asked for
+    hitbox_plus: {
+      name: "Bigger Bat",
+      desc: "+20px swing hitbox (easier hits).",
+      apply(){ upgrades.hitboxBonus += 20; }
+    },
+    autopitch_2: {
+      name: "Auto Pitch",
+      desc: "Every 5s throw 2 friendly balls forward.",
+      apply(){ upgrades.autoPitchCount = Math.max(upgrades.autoPitchCount, 2); }
+    },
+
+    // more upgrades (you said you want all the upgrades)
+    cooldown: {
+      name: "Quick Hands",
+      desc: "Skill cooldowns -10%.",
+      apply(){ upgrades.cdMul *= 0.90; }
+    },
+    hp: {
+      name: "Extra Heart",
+      desc: "+1 HP (cap 6).",
+      apply(){ hp = Math.min(6, hp + 1); }
+    },
+    shield: {
+      name: "Shield Charge",
+      desc: "+1 shield (cap 3).",
+      apply(){ buffs.shield = Math.min(3, buffs.shield + 1); }
+    },
+    perfect: {
+      name: "Timing Master",
+      desc: "Perfect window +0.02s.",
+      apply(){ upgrades.perfectBonus += 0.02; }
+    },
+    skill_dmg: {
+      name: "Sharper Skills",
+      desc: "VERT/HORZ damage +1.",
+      apply(){ upgrades.skillDamageBonus += 1; }
+    },
+    autopitch_3: {
+      name: "Auto Pitch+",
+      desc: "Auto Pitch now fires 3 balls.",
+      apply(){ upgrades.autoPitchCount = Math.max(upgrades.autoPitchCount, 3); }
+    },
+    autopitch_faster: {
+      name: "Rapid Pitch",
+      desc: "Auto Pitch interval -1s (min 2s).",
+      apply(){ upgrades.autoPitchInterval = Math.max(2.0, upgrades.autoPitchInterval - 1.0); }
+    },
+  };
+
+  function getLevelUpgradeChoices(lv){
+    // Your requested progression:
+    // L1: Bigger Bat
+    // L2: Auto Pitch (2 balls / 5s)
+    if (lv === 1) return ["hitbox_plus"];   // forced
+    if (lv === 2) return ["autopitch_2"];   // forced
+
+    // Later levels: 3 choices
+    const pool = [
+      "hitbox_plus",
+      "cooldown",
+      "hp",
+      "shield",
+      "perfect",
+      "skill_dmg",
+      "autopitch_3",
+      "autopitch_faster",
+    ];
+
+    // small helper: bias autopitch upgrades if you already have autopitch
+    const weighted = pool.slice();
+    if (upgrades.autoPitchCount > 0){
+      weighted.push("autopitch_3","autopitch_faster");
+    }
+
+    const pick = [];
+    while (pick.length < 3){
+      const id = weighted[(Math.random()*weighted.length)|0];
+      if (!pick.includes(id)) pick.push(id);
+    }
+    return pick;
+  }
+
+  function openUpgradeModal(nextLv){
+    upgradeOpen = true;
+    pendingNextLevel = nextLv;
+
+    const choices = getLevelUpgradeChoices(level);
+    upgradeTitle.textContent = `Level ${level} Complete!`;
+    upgradeSub.textContent = (choices.length === 1) ? "Upgrade unlocked. Tap to continue." : "Pick your upgrade.";
+    upgradeTip.textContent = (choices.length === 1) ? "Tap the card to continue." : "Tip: press 1 / 2 / 3 on keyboard (or tap a card).";
+
+    upgradeChoicesEl.innerHTML = choices.map((id, idx) => {
+      const u = UPGRADE_CATALOG[id];
+      const keyHint = (choices.length === 1) ? "" : `(${idx+1})`;
+      return `
+        <div class="upg" data-upg="${id}" data-idx="${idx}">
+          <div class="n">${u?.name ?? id}</div>
+          <div class="d">${u?.desc ?? ""}</div>
+          <div class="k">${keyHint}</div>
+        </div>
+      `;
+    }).join("");
+
+    upgradeModal.hidden = false;
+  }
+
+  function closeUpgradeModal(){
+    upgradeOpen = false;
+    upgradeModal.hidden = true;
+  }
+
+  function chooseUpgradeByIndex(i){
+    const el = upgradeChoicesEl.querySelector(`.upg[data-idx="${i}"]`);
+    if (!el) return;
+    const id = el.dataset.upg;
+
+    UPGRADE_CATALOG[id]?.apply?.();
+
+    // tiny juice reward
+    buffs.double = Math.max(buffs.double, 1.2);
+    shakeMag = Math.max(shakeMag, 9);
+    shakeT = Math.max(shakeT, 0.22);
+
+    closeUpgradeModal();
+    startLevel(pendingNextLevel);
+    pendingNextLevel = null;
+  }
+
+  upgradeChoicesEl.addEventListener("pointerup", (e) => {
+    const card = e.target.closest(".upg");
+    if (!card) return;
+    const idx = Number(card.dataset.idx);
+    chooseUpgradeByIndex(idx);
+  });
+
+  window.addEventListener("keydown", (e) => {
+    const k = e.key.toLowerCase();
+
+    if (k === "r") resetRun();
+
+    // when upgrade modal is open, 1/2/3 selects
+    if (!upgradeOpen) return;
+    if (k === "1") chooseUpgradeByIndex(0);
+    if (k === "2") chooseUpgradeByIndex(1);
+    if (k === "3") chooseUpgradeByIndex(2);
+  });
+
+  window.addEventListener("keyup", (e) => {
+    const k = e.key.toLowerCase();
+    if (k === "a" || k === "arrowleft") input.left = false;
+    if (k === "d" || k === "arrowright") input.right = false;
+  });
+
+  // Keydown (movement/skills) — keep separate so upgrade modal still allows 1/2/3
+  window.addEventListener("keydown", (e) => {
+    const k = e.key.toLowerCase();
+    if (k === "a" || k === "arrowleft") input.left = true;
+    if (k === "d" || k === "arrowright") input.right = true;
+    if (k === " ") input.jump = true;
+    if (k === "j") input.swing = true;
+    if (k === "k") input.skillV = true;
+    if (k === "l") input.skillH = true;
+  });
 
   // ===== Entities =====
   const balls = [];
@@ -420,11 +679,19 @@
     combo = 0;
     comboTimer = 0;
 
+    // reset upgrades (fresh run)
+    upgrades.hitboxBonus = 0;
+    upgrades.cdMul = 1.0;
+    upgrades.perfectBonus = 0.00;
+    upgrades.skillDamageBonus = 0;
+    upgrades.autoPitchCount = 0;
+    upgrades.autoPitchInterval = 5.0;
+    upgrades.autoPitchT = 0;
+
     level = 1;
     levelKills = 0;
     levelTime = 0;
     levelBannerT = 1.4;
-    betweenLevelsT = 0;
 
     buffs.slowmo = 0;
     buffs.double = 0;
@@ -455,11 +722,17 @@
     balls.length = 0;
     explosions.length = 0;
     pickups.length = 0;
+    shots.length = 0;
     spawnT = 0;
 
     hitStop = 0;
     shakeT = 0;
     shakeMag = 0;
+
+    // close modal if open
+    upgradeOpen = false;
+    pendingNextLevel = null;
+    upgradeModal.hidden = true;
   }
 
   function startLevel(lv){
@@ -467,7 +740,6 @@
     levelKills = 0;
     levelTime = 0;
     levelBannerT = 1.4;
-    betweenLevelsT = 0;
     spawnT = 0;
 
     balls.length = 0;
@@ -482,17 +754,54 @@
   }
 
   function finishLevel(){
-    betweenLevelsT = 0.9;
-    levelBannerT = 0.9;
-
-    // tiny reward
-    buffs.double = Math.max(buffs.double, 1.8);
-
-    shakeMag = Math.max(shakeMag, 8);
-    shakeT = Math.max(shakeT, 0.25);
+    // Open upgrade picker and pause game until chosen
+    openUpgradeModal(level + 1);
   }
 
-  // Unified ball damage (used by swing & skills)
+  // ===== Friendly Auto Pitch =====
+  function fireAutoPitch(){
+    if (upgrades.autoPitchCount <= 0) return;
+
+    const baseY = player.y + 92;
+    const startX = player.x + player.w - 6;
+
+    for (let i = 0; i < upgrades.autoPitchCount; i++){
+      const spread = (i - (upgrades.autoPitchCount-1)/2) * 22;
+      shots.push({
+        x: startX,
+        y: baseY + spread,
+        r: 14,
+        vx: 920,
+        alive: true,
+        dmg: 1,
+      });
+    }
+  }
+
+  function updateShots(dt, W, H){
+    for (const s of shots){
+      if (!s.alive) continue;
+      s.x += s.vx * dt;
+
+      if (s.x > W + 60) s.alive = false;
+
+      for (const b of balls){
+        if (!b.alive) continue;
+        const dx = b.x - s.x, dy = b.y - s.y;
+        const rr = (b.r + s.r);
+        if ((dx*dx + dy*dy) <= rr*rr){
+          s.alive = false;
+          dealDamageToBall(b, s.dmg, W, H, { fromSkill:true });
+          break;
+        }
+      }
+    }
+    for (let i = shots.length - 1; i >= 0; i--){
+      if (!shots[i].alive) shots.splice(i, 1);
+    }
+  }
+
+  // Unified ball damage (used by swing & skills & shots)
   function dealDamageToBall(b, dmg, W, H, {isPerfect=false, fromSkill=false} = {}){
     if (!b.alive) return false;
 
@@ -530,7 +839,7 @@
 
     // objective check
     const spec = getLevelSpec(level);
-    if (betweenLevelsT <= 0){
+    if (!upgradeOpen){
       if (spec.type === "kills" && levelKills >= spec.target) finishLevel();
       if (spec.type === "boss" && levelKills >= spec.target) finishLevel();
     }
@@ -539,6 +848,9 @@
 
   // ===== Main step =====
   function step(dt, W, H){
+    // pause gameplay while upgrade picker is open
+    if (upgradeOpen) return;
+
     if (hitStop > 0){
       hitStop -= dt;
       return;
@@ -555,14 +867,7 @@
 
     // level timers
     const spec = getLevelSpec(level);
-    if (betweenLevelsT > 0){
-      betweenLevelsT -= sdt;
-      if (betweenLevelsT <= 0){
-        startLevel(level + 1);
-      }
-    } else {
-      levelTime += sdt;
-    }
+    levelTime += sdt;
 
     // combo decay
     if (combo > 0){
@@ -578,6 +883,15 @@
     if (fxVertT > 0) fxVertT = Math.max(0, fxVertT - sdt);
     if (fxHorzT > 0) fxHorzT = Math.max(0, fxHorzT - sdt);
 
+    // Auto Pitch tick
+    if (upgrades.autoPitchCount > 0){
+      upgrades.autoPitchT += sdt;
+      if (upgrades.autoPitchT >= upgrades.autoPitchInterval){
+        upgrades.autoPitchT = 0;
+        fireAutoPitch();
+      }
+    }
+
     // move
     const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
     player.vx = dir * player.speed;
@@ -585,7 +899,6 @@
 
     // jump (double jump)
     if (input.jump && player.jumpsLeft > 0){
-      // second jump slightly weaker feels better
       const isSecond = (player.jumpsLeft === 1);
       player.vy = player.jumpVel * (isSecond ? 0.92 : 1.0);
       player.onGround = false;
@@ -611,7 +924,7 @@
       player.y = groundY - player.h;
       player.vy = 0;
       player.onGround = true;
-      player.jumpsLeft = player.maxJumps; // reset jumps
+      player.jumpsLeft = player.maxJumps;
     }
 
     // swing timers
@@ -628,7 +941,7 @@
     }
 
     // spawn logic
-    if (betweenLevelsT <= 0){
+    if (!upgradeOpen){
       spawnT += sdt;
 
       const baseInterval = 1.05;
@@ -664,14 +977,12 @@
       if (b.x < -120 && b.alive){
         b.alive = false;
 
-        // damage
         if (buffs.shield > 0){
           buffs.shield--;
         } else {
           hp = Math.max(0, hp - (b.kind === "boss" ? 2 : 1));
         }
 
-        // reset combo
         combo = 0;
         comboTimer = 0;
 
@@ -709,10 +1020,13 @@
       }
     }
 
+    // update friendly shots
+    updateShots(sdt, W, H);
+
     // ===== SKILLS =====
-    // VERT: hit everything in a vertical column in front of player
+    // VERT: hit everything in a vertical column in front of player (global top->bottom)
     if (input.skillV && player.skillVCD <= 0){
-      player.skillVCD = player.skillVCDDur;
+      player.skillVCD = player.skillVCDDur * upgrades.cdMul;
       fxVertT = 0.22;
 
       const stripeW = 110;
@@ -720,51 +1034,58 @@
         ? (player.x + player.w + 30)
         : (player.x - 30 - stripeW);
 
+      const dmg = 2 + upgrades.skillDamageBonus;
+
       for (const b of balls){
         if (!b.alive) continue;
         if (b.x >= stripeX && b.x <= stripeX + stripeW){
-          dealDamageToBall(b, 2, W, H, { fromSkill:true });
+          dealDamageToBall(b, dmg, W, H, { fromSkill:true });
         }
       }
     }
     input.skillV = false;
 
-    // HORZ: hit everything in a horizontal row band
+    // HORZ: hit everything in a horizontal row band (global left->right)
     if (input.skillH && player.skillHCD <= 0){
-      player.skillHCD = player.skillHCDDur;
+      player.skillHCD = player.skillHCDDur * upgrades.cdMul;
       fxHorzT = 0.22;
 
       const bandY = player.y + 95;
       const bandH = 90;
 
+      const dmg = 2 + upgrades.skillDamageBonus;
+
       for (const b of balls){
         if (!b.alive) continue;
         if (b.y >= bandY && b.y <= bandY + bandH){
-          dealDamageToBall(b, 2, W, H, { fromSkill:true });
+          dealDamageToBall(b, dmg, W, H, { fromSkill:true });
         }
       }
     }
     input.skillH = false;
 
-    // ===== SWING HITBOX (pulled in closer) =====
+    // ===== SWING HITBOX (pulled in closer + upgrade scaling) =====
     if (player.swing){
-      // pulled in a tad more than before
       let swingW = 120; // was 140
       let swingH = 95;  // was 110
+
+      // level upgrades increase hitbox
+      swingW += upgrades.hitboxBonus;
+      swingH += Math.round(upgrades.hitboxBonus * 0.75);
 
       if (buffs.magnet > 0){
         swingW += 24;
         swingH += 18;
       }
 
-      const inset = 28;   // bigger inset = closer to player
+      const inset = 28;
       const sx = (player.facing === 1)
         ? (player.x + player.w - inset)
         : (player.x - swingW + inset);
 
-      const sy = player.y + 68; // bat-height-ish
+      const sy = player.y + 68;
 
-      const perfectWindow = 0.055;
+      const perfectWindow = 0.055 + upgrades.perfectBonus;
       const isPerfect = player.swingAge <= perfectWindow;
 
       for (const b of balls){
@@ -776,7 +1097,7 @@
     }
 
     // survival objective check
-    if (betweenLevelsT <= 0 && spec.type === "survive"){
+    if (spec.type === "survive"){
       if (levelTime >= spec.target){
         finishLevel();
       }
@@ -808,6 +1129,7 @@
     const slowTxt = buffs.slowmo > 0 ? "🕒 " : "";
     const dblTxt = buffs.double > 0 ? "x2 " : "";
     const magTxt = buffs.magnet > 0 ? "🧲 " : "";
+    const apTxt = upgrades.autoPitchCount > 0 ? `🎯${upgrades.autoPitchCount}/${upgrades.autoPitchInterval.toFixed(0)}s ` : "";
 
     let objTxt = "";
     if (spec.type === "kills") objTxt = `OBJ ${levelKills}/${spec.target}`;
@@ -819,7 +1141,7 @@
 
     topbar.textContent =
       `Lv ${level} (${getTheme(level)}) • ${objTxt}\n` +
-      `Score ${score} • HP ${hp} • Combo ${combo} • x${mult} • ${shieldTxt}${slowTxt}${dblTxt}${magTxt}\n` +
+      `Score ${score} • HP ${hp} • Combo ${combo} • x${mult} • ${shieldTxt}${slowTxt}${dblTxt}${magTxt}${apTxt}\n` +
       `VERT ${cdV} • HORZ ${cdH}`;
   }
 
@@ -859,7 +1181,7 @@
     ctx.fillRect(0, groundY, W, H-groundY);
     ctx.globalAlpha = 1;
 
-    // Skill FX overlays (use your skill images if loaded, else fallback)
+    // Skill FX overlays
     if (fxVertT > 0){
       const a = fxVertT / 0.22;
       ctx.globalAlpha = 0.95 * a;
@@ -916,6 +1238,20 @@
     } else {
       ctx.fillStyle = "#fff";
       ctx.fillRect(player.x, player.y, player.w, player.h);
+    }
+
+    // Friendly shots (Auto Pitch)
+    const shotImg = IMG.ball; // keep consistent
+    for (const s of shots){
+      if (!s.alive) continue;
+      const size = s.r * 2;
+      if (shotImg) ctx.drawImage(shotImg, s.x - s.r, s.y - s.r, size, size);
+      else {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+      }
     }
 
     // Enemies (theme-based sprite)
