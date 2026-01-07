@@ -14,6 +14,7 @@
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
     color:#fff;
     pointer-events:none;
+    
   }
   .topbar{
     position:absolute; left:10px; top:10px;
@@ -197,6 +198,31 @@
     }
     canvas, .hud { display: none; }
   }
+  .restartBtn{
+  position:absolute;
+  right: 10px;
+  top: 92px; /* sits under the hint */
+  width: 108px;
+  height: 44px;
+  border-radius: 14px;
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.18);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+
+  font-weight: 950;
+  pointer-events:auto;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:none;
+}
+.restartBtn:active { transform: translateY(1px); }
+
 </style>
 <link rel="icon" href="data:,">
 </head>
@@ -208,6 +234,8 @@
   <div class="hud">
     <div class="topbar" id="topbar">Loading…</div>
     <div class="hint" id="hint">
+      <div class="restartBtn" id="btnRestart">RESTART</div>
+
 PC: Mouse aim • Click swing
 Keys: Arrows aim • J swing
 K VERT • L HORZ • T toggle
@@ -411,6 +439,7 @@ R restart
   bindTap(document.getElementById("btnToggle"), toggleStance);
   bindTap(document.getElementById("btnRighty"), ()=> setStance("righty"));
   bindTap(document.getElementById("btnLefty"),  ()=> setStance("lefty"));
+bindTap(document.getElementById("btnRestart"), () => resetRun());
 
   // ===== Aim spot =====
   const aim = { nx: 0, ny: 0 };
