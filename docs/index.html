@@ -34,6 +34,7 @@
     font-size:12px;
     pointer-events:none;
     text-align:right;
+    white-space: pre-line;
   }
 
   .controls{
@@ -50,22 +51,30 @@
     padding-bottom:calc(14px + env(safe-area-inset-bottom));
   }
 
-  .pad, .btnCol{
+  .leftCol{
     display:grid;
+    grid-template-columns: 1fr;
     gap:12px;
+    align-items:end;
     pointer-events:auto;
   }
 
-  .pad{
-    grid-template-columns: 72px 72px;
-    grid-template-rows: 72px 72px;
-  }
-  .btnCol{
-    grid-template-columns: 72px 72px;
-    grid-template-rows: 72px 72px;
-    justify-content:end;
+  .stanceRow{
+    display:grid;
+    grid-template-columns: 72px 72px 72px;
+    gap:12px;
+    justify-content:start;
+    pointer-events:auto;
   }
 
+  .btnCol{
+    display:grid;
+    grid-template-columns: 72px 72px;
+    grid-template-rows: 72px 72px;
+    gap:12px;
+    justify-content:end;
+    pointer-events:auto;
+  }
   .wide{ grid-column: 1 / span 2; }
 
   .btn{
@@ -80,6 +89,51 @@
     touch-action:none;
   }
   .btn:active { transform: translateY(1px); }
+
+  /* ===== Joystick ===== */
+  .joy{
+    width: 168px;
+    height: 168px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    position: relative;
+    pointer-events:auto;
+    touch-action:none;
+  }
+  .joy::after{
+    content:"";
+    position:absolute;
+    inset: 18px;
+    border-radius: 999px;
+    border: 1px dashed rgba(255,255,255,.18);
+    opacity:.65;
+  }
+  .joyKnob{
+    width: 70px;
+    height: 70px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.18);
+    border: 1px solid rgba(255,255,255,.22);
+    position:absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events:none;
+  }
+  .joyLabel{
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform: translate(-50%, 52px);
+    font-size: 11px;
+    font-weight: 950;
+    opacity: .75;
+    pointer-events:none;
+    white-space:nowrap;
+  }
 
   /* ===== Upgrade Modal ===== */
   .modal{
@@ -144,6 +198,7 @@
     canvas, .hud { display: none; }
   }
 </style>
+<link rel="icon" href="data:,">
 </head>
 
 <body>
@@ -152,13 +207,13 @@
 
   <div class="hud">
     <div class="topbar" id="topbar">Loading…</div>
-    <div class="hint">
-      A/D move • Space jump<br/>
-      J swing • K VERT • L HORZ<br/>
-      R restart
+    <div class="hint" id="hint">
+PC: Mouse aim • Click swing
+Keys: Arrows aim • J swing
+K VERT • L HORZ • T toggle
+R restart
     </div>
 
-    <!-- UPGRADE MODAL -->
     <div class="modal" id="upgradeModal" hidden>
       <div class="panel">
         <div class="title" id="upgradeTitle">Level Complete!</div>
@@ -168,16 +223,19 @@
       </div>
     </div>
 
-    <!-- Mobile Controls -->
     <div class="controls">
-      <!-- LEFT THUMB: move + jump -->
-      <div class="pad">
-        <div class="btn wide" id="btnJump">JUMP</div>
-        <div class="btn" id="btnLeft">◀</div>
-        <div class="btn" id="btnRight">▶</div>
+      <div class="leftCol">
+        <div class="joy" id="joy">
+          <div class="joyKnob" id="joyKnob"></div>
+          <div class="joyLabel">AIM</div>
+        </div>
+        <div class="stanceRow">
+          <div class="btn" id="btnToggle">TOGGLE</div>
+          <div class="btn" id="btnRighty">RIGHTY</div>
+          <div class="btn" id="btnLefty">LEFTY</div>
+        </div>
       </div>
 
-      <!-- RIGHT THUMB: skills + swing -->
       <div class="btnCol">
         <div class="btn" id="btnVert">VERT</div>
         <div class="btn" id="btnHorz">HORZ</div>
@@ -189,7 +247,6 @@
 
 <script>
 (() => {
-  // ===== Canvas setup =====
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
 
@@ -198,7 +255,7 @@
     const rect = canvas.getBoundingClientRect();
     canvas.width  = Math.floor(rect.width * dpr);
     canvas.height = Math.floor(rect.height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS pixels
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
@@ -214,104 +271,255 @@
     });
   }
 
-  /*
-    Put these in /assets:
-
-    Existing:
-    - back_alley_background.png
-    - baeball_player.png
-    - baseball_player_swing.png
-    - evil_baseball_1.png
-    - explosion.png
-
-    NEW:
-    - emoji_town_background.png
-    - creepy_smile.png
-    - vertical_slash_skill.png
-    - horizontal_slash_skill.png
-  */
   const ASSETS = [
     loadImg("bg", "assets/back_alley_background.png"),
     loadImg("bg2", "assets/emoji_town_background.png"),
-
     loadImg("player", "assets/baeball_player.png"),
     loadImg("pSwingFollow", "assets/baseball_player_swing.png"),
-
     loadImg("ball", "assets/evil_baseball_1.png"),
     loadImg("enemy2", "assets/creepy_smile.png"),
-
     loadImg("explosion", "assets/explosion.png"),
-
     loadImg("skillV", "assets/vertical_slash_skill.png"),
     loadImg("skillH", "assets/horizontal_slash_skill.png"),
   ];
 
-  // ===== World =====
-  const world = {
-    gravity: 2200,
-    groundYFrac: 0.84,
-  };
+  // ===== Config =====
+  const STRIKE_ZONE_VISIBLE = true;
+  const PLATE_Y_FRAC = 0.90;
+
+  const STRIKE_W = 150;
+  const BAND_H = 24;
+
+  const SHOULDER_FRAC = 0.35;
+  const KNEE_FRAC     = 0.74;
+
+  const STANCE_OFFSET = 130;
+
+  const AIM_PAD = 10;
+  const CHASE_MARGIN = 22;
+
+  // Smaller starter aimer
+  const BAT_R_BASE = 22;
+  const BAT_R_PER_UPG = 0.55;
+
+  const LATE_GRACE = 0.06;
+
+  // Overlap grading is now relative to BAT circle area (so smaller aim is still viable)
+  const OVERLAP_PERFECT = 0.92; // % of bat circle covered by ball
+  const OVERLAP_GOOD    = 0.75;
+
+  const POPUP_LIFE = 0.62;
+  const POPUP_RISE = -130;
+  const POPUP_STACK_STEP = 42;
+
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+  function clamp01(v){ return Math.max(0, Math.min(1, v)); }
+  function lerp(a, b, t){ return a + (b - a) * t; }
+
+  function norm2(x, y){
+    const l = Math.hypot(x, y) || 1;
+    return { x: x / l, y: y / l };
+  }
+
+  function circleRectHit(cx, cy, r, rx, ry, rw, rh){
+    const nx = clamp(cx, rx, rx+rw);
+    const ny = clamp(cy, ry, ry+rh);
+    const dx = cx - nx, dy = cy - ny;
+    return (dx*dx + dy*dy) <= r*r;
+  }
+
+  function circleOverlapArea(r1, r2, d){
+    if (d >= r1 + r2) return 0;
+    if (d <= Math.abs(r1 - r2)){
+      const rMin = Math.min(r1, r2);
+      return Math.PI * rMin * rMin;
+    }
+    const a1 = 2 * Math.acos((r1*r1 + d*d - r2*r2) / (2*r1*d));
+    const a2 = 2 * Math.acos((r2*r2 + d*d - r1*r1) / (2*r2*d));
+    const area1 = 0.5 * r1*r1 * (a1 - Math.sin(a1));
+    const area2 = 0.5 * r2*r2 * (a2 - Math.sin(a2));
+    return area1 + area2;
+  }
+
+  function getPlate(W, H){
+    return { x: W * 0.5, y: H * PLATE_Y_FRAC };
+  }
+
+  function getContactBandFromPlate(W, H){
+    const plate = getPlate(W, H);
+    const bot = Math.min(H - 18, plate.y);
+    const y = bot - BAND_H;
+    return { x: plate.x - STRIKE_W / 2, y, w: STRIKE_W, h: BAND_H, top: y, bot };
+  }
+
+  function getStrikeZoneFromPlayer(W, H, playerY, playerH){
+    const plate = getPlate(W, H);
+    const shoulderY = playerY + playerH * SHOULDER_FRAC;
+    const kneeY     = playerY + playerH * KNEE_FRAC;
+    const h = Math.max(36, kneeY - shoulderY);
+    return { x: plate.x - STRIKE_W / 2, y: shoulderY, w: STRIKE_W, h, bot: kneeY };
+  }
+
+  function stackOffset(i){
+    if (i === 0) return 0;
+    const side = (i % 2 === 1) ? 1 : -1;
+    const step = Math.ceil(i / 2);
+    return side * step * POPUP_STACK_STEP;
+  }
 
   // ===== Player =====
   const player = {
-    x: 220, y: 0,
+    x: 0, y: 0,
     w: 120, h: 180,
-    vx: 0, vy: 0,
-    speed: 720,
-
-    // double-jump
-    maxJumps: 2,
-    jumpsLeft: 2,
-
-    jumpVel: -980,
-    onGround: false,
+    stance: "righty",
     facing: 1,
 
-    // swing + timing
     swing: false,
     swingTimer: 0,
     swingWindow: 0.18,
     swingAge: 999,
     swingPoseTimer: 0,
     swingPoseDur: 0.16,
-
-    // light anti-spam
     swingCD: 0,
     swingCDDur: 0.10,
 
-    // skills
     skillVCD: 0,
     skillHCD: 0,
     skillVCDDur: 6.0,
     skillHCDDur: 7.5,
   };
 
+  function setStance(which){
+    player.stance = which;
+    player.facing = (which === "righty") ? 1 : -1;
+  }
+  function toggleStance(){
+    setStance(player.stance === "righty" ? "lefty" : "righty");
+  }
+
   // ===== Input =====
-  const input = {
-    left:false, right:false,
-    jump:false, swing:false,
-    skillV:false, skillH:false
-  };
+  const input = { swing:false, skillV:false, skillH:false };
 
-  function bindHold(el, key){
-    const down = (e)=>{ e.preventDefault(); input[key] = true; };
-    const up   = (e)=>{ e.preventDefault(); input[key] = false; };
-    el.addEventListener("pointerdown", down);
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
-    el.addEventListener("pointerout", up);
-    el.addEventListener("pointerleave", up);
-  }
-  function bindTap(el, key){
-    el.addEventListener("pointerdown", (e)=>{ e.preventDefault(); input[key] = true; });
+  function bindTap(el, fn){
+    el.addEventListener("pointerdown", (e)=>{ e.preventDefault(); fn(); });
   }
 
-  bindHold(document.getElementById("btnLeft"), "left");
-  bindHold(document.getElementById("btnRight"), "right");
-  bindTap(document.getElementById("btnJump"), "jump");
-  bindTap(document.getElementById("btnSwing"), "swing");
-  bindTap(document.getElementById("btnVert"), "skillV");
-  bindTap(document.getElementById("btnHorz"), "skillH");
+  bindTap(document.getElementById("btnSwing"), ()=> input.swing = true);
+  bindTap(document.getElementById("btnVert"),  ()=> input.skillV = true);
+  bindTap(document.getElementById("btnHorz"),  ()=> input.skillH = true);
+
+  bindTap(document.getElementById("btnToggle"), toggleStance);
+  bindTap(document.getElementById("btnRighty"), ()=> setStance("righty"));
+  bindTap(document.getElementById("btnLefty"),  ()=> setStance("lefty"));
+
+  // ===== Aim spot =====
+  const aim = { nx: 0, ny: 0 };
+  let lastZone = { x:0, y:0, w:100, h:100 };
+
+  function clampAimToExpandedZone(zone, px, py){
+    const ex = zone.x - CHASE_MARGIN;
+    const ey = zone.y - CHASE_MARGIN;
+    const ew = zone.w + CHASE_MARGIN*2;
+    const eh = zone.h + CHASE_MARGIN*2;
+
+    const x = clamp(px, ex + AIM_PAD, ex + ew - AIM_PAD);
+    const y = clamp(py, ey + AIM_PAD, ey + eh - AIM_PAD);
+
+    const nx = ((x - (ex + AIM_PAD)) / Math.max(1, (ew - AIM_PAD*2))) * 2 - 1;
+    const ny = ((y - (ey + AIM_PAD)) / Math.max(1, (eh - AIM_PAD*2))) * 2 - 1;
+    aim.nx = clamp(nx, -1, 1);
+    aim.ny = clamp(ny, -1, 1);
+  }
+
+  function getAimPoint(zone){
+    const ex = zone.x - CHASE_MARGIN;
+    const ey = zone.y - CHASE_MARGIN;
+    const ew = zone.w + CHASE_MARGIN*2;
+    const eh = zone.h + CHASE_MARGIN*2;
+
+    const x = ex + AIM_PAD + ((aim.nx + 1) * 0.5) * (ew - AIM_PAD*2);
+    const y = ey + AIM_PAD + ((aim.ny + 1) * 0.5) * (eh - AIM_PAD*2);
+
+    return {
+      x: clamp(x, ex + AIM_PAD, ex + ew - AIM_PAD),
+      y: clamp(y, ey + AIM_PAD, ey + eh - AIM_PAD),
+    };
+  }
+
+  // ===== Joystick =====
+  const joyEl = document.getElementById("joy");
+  const knobEl = document.getElementById("joyKnob");
+  let joyActive = false;
+  let joyPid = -1;
+
+  function setKnob(dx, dy){
+    knobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  }
+
+  function updateAimFromJoyPointer(clientX, clientY){
+    const r = joyEl.getBoundingClientRect();
+    const cx = r.left + r.width/2;
+    const cy = r.top + r.height/2;
+
+    const maxR = (Math.min(r.width, r.height) * 0.5) - 20;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+
+    const d = Math.hypot(dx, dy) || 1;
+    if (d > maxR){
+      dx = dx / d * maxR;
+      dy = dy / d * maxR;
+    }
+
+    aim.nx = clamp(dx / maxR, -1, 1);
+    aim.ny = clamp(dy / maxR, -1, 1);
+
+    setKnob(dx, dy);
+  }
+
+  joyEl.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    joyActive = true;
+    joyPid = e.pointerId;
+    joyEl.setPointerCapture(joyPid);
+    updateAimFromJoyPointer(e.clientX, e.clientY);
+  });
+
+  joyEl.addEventListener("pointermove", (e) => {
+    if (!joyActive || e.pointerId !== joyPid) return;
+    e.preventDefault();
+    updateAimFromJoyPointer(e.clientX, e.clientY);
+  });
+
+  function endJoy(e){
+    if (!joyActive || e.pointerId !== joyPid) return;
+    e.preventDefault();
+    joyActive = false;
+    joyPid = -1;
+  }
+  joyEl.addEventListener("pointerup", endJoy);
+  joyEl.addEventListener("pointercancel", endJoy);
+  joyEl.addEventListener("lostpointercapture", () => { joyActive = false; joyPid = -1; });
+
+  // ===== PC mouse aiming + click swing =====
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  canvas.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;
+    if (upgradeOpen) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+
+    clampAimToExpandedZone(lastZone, px, py);
+  });
+
+  canvas.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "mouse") return;
+    if (upgradeOpen) return;
+    if (e.button === 0) input.swing = true;
+  });
 
   // ===== Game state =====
   const topbar = document.getElementById("topbar");
@@ -319,7 +527,6 @@
   let score = 0;
   let hp = 3;
 
-  // score-chaser
   let combo = 0;
   let comboTimer = 0;
   const COMBO_DECAY = 2.25;
@@ -328,38 +535,28 @@
     return Math.min(6, 1 + Math.floor(combo / 10));
   }
 
-  // juice
   let hitStop = 0;
   let shakeT = 0;
   let shakeMag = 0;
 
-  // skill FX timers
   let fxVertT = 0;
   let fxHorzT = 0;
 
-  // powerups
-  const buffs = {
-    slowmo: 0,
-    double: 0,
-    magnet: 0,
-    shield: 0,
-  };
+  const buffs = { slowmo:0, double:0, magnet:0, shield:0 };
 
-  // ===== Upgrades (per-level) =====
   const upgrades = {
-    hitboxBonus: 0,          // increases swingW/swingH
-    cdMul: 1.0,              // skill cooldown multiplier
-    perfectBonus: 0.00,      // adds to perfect window
-    skillDamageBonus: 0,     // +dmg to skills
+    hitboxBonus: 0,
+    cdMul: 1.0,
+    perfectBonus: 0.00, // overlap leniency
+    skillDamageBonus: 0,
 
-    autoPitchCount: 0,       // friendly projectiles per volley
-    autoPitchInterval: 5.0,  // seconds
+    autoPitchCount: 0,
+    autoPitchInterval: 5.0,
     autoPitchT: 0,
   };
 
-  const shots = []; // friendly projectiles
+  const shots = [];
 
-  // Levels/objectives
   let level = 1;
   let levelKills = 0;
   let levelTime = 0;
@@ -383,16 +580,18 @@
     if (spec.type === "survive") spec.target = Math.round(spec.target * scale);
     if (spec.type === "boss") spec.target = 1;
 
-    if (spec.type === "kills") spec.banner = `LEVEL ${lv} — Hit ${spec.target} balls`;
-    if (spec.type === "survive") spec.banner = `LEVEL ${lv} — Survive ${spec.target}s`;
-    if (spec.type === "boss") spec.banner = `LEVEL ${lv} — MINI BOSS`;
-
+    if (spec.type === "kills") spec.banner = `LEVEL ${lv} — Protect the Plate: ${spec.target} KOs`;
+    if (spec.type === "survive") spec.banner = `LEVEL ${lv} — Hold the Line: ${spec.target}s`;
+    if (spec.type === "boss") spec.banner = `LEVEL ${lv} — MINI BOSS INBOUND`;
     return spec;
   }
 
-  // Theme: make Emoji Town a new "level theme" starting at Level 6
   function getTheme(lv){
     return (lv >= 6) ? "emoji" : "alley";
+  }
+
+  function difficultyT(){
+    return clamp01((level - 1) / 18);
   }
 
   // ===== Upgrade Modal UI =====
@@ -406,80 +605,24 @@
   let pendingNextLevel = null;
 
   const UPGRADE_CATALOG = {
-    // the two you asked for
-    hitbox_plus: {
-      name: "Bigger Bat",
-      desc: "+20px swing hitbox (easier hits).",
-      apply(){ upgrades.hitboxBonus += 20; }
-    },
-    autopitch_2: {
-      name: "Auto Pitch",
-      desc: "Every 5s throw 2 friendly balls forward.",
-      apply(){ upgrades.autoPitchCount = Math.max(upgrades.autoPitchCount, 2); }
-    },
-
-    // more upgrades (you said you want all the upgrades)
-    cooldown: {
-      name: "Quick Hands",
-      desc: "Skill cooldowns -10%.",
-      apply(){ upgrades.cdMul *= 0.90; }
-    },
-    hp: {
-      name: "Extra Heart",
-      desc: "+1 HP (cap 6).",
-      apply(){ hp = Math.min(6, hp + 1); }
-    },
-    shield: {
-      name: "Shield Charge",
-      desc: "+1 shield (cap 3).",
-      apply(){ buffs.shield = Math.min(3, buffs.shield + 1); }
-    },
-    perfect: {
-      name: "Timing Master",
-      desc: "Perfect window +0.02s.",
-      apply(){ upgrades.perfectBonus += 0.02; }
-    },
-    skill_dmg: {
-      name: "Sharper Skills",
-      desc: "VERT/HORZ damage +1.",
-      apply(){ upgrades.skillDamageBonus += 1; }
-    },
-    autopitch_3: {
-      name: "Auto Pitch+",
-      desc: "Auto Pitch now fires 3 balls.",
-      apply(){ upgrades.autoPitchCount = Math.max(upgrades.autoPitchCount, 3); }
-    },
-    autopitch_faster: {
-      name: "Rapid Pitch",
-      desc: "Auto Pitch interval -1s (min 2s).",
-      apply(){ upgrades.autoPitchInterval = Math.max(2.0, upgrades.autoPitchInterval - 1.0); }
-    },
+    hitbox_plus: { name:"Bigger Sweet Spot", desc:"+20px bat contact radius (easier hits).", apply(){ upgrades.hitboxBonus += 20; } },
+    autopitch_2: { name:"Auto Pitch", desc:"Every 5s throw 2 friendly balls.", apply(){ upgrades.autoPitchCount = Math.max(upgrades.autoPitchCount, 2); } },
+    cooldown:    { name:"Quick Hands", desc:"Skill cooldowns -10%.", apply(){ upgrades.cdMul *= 0.90; } },
+    hp:          { name:"Extra Heart", desc:"+1 HP (cap 6).", apply(){ hp = Math.min(6, hp + 1); } },
+    shield:      { name:"Shield Charge", desc:"+1 shield (cap 3).", apply(){ buffs.shield = Math.min(3, buffs.shield + 1); } },
+    perfect:     { name:"Timing Master", desc:"Perfect overlap leniency +2%.", apply(){ upgrades.perfectBonus += 0.02; } },
+    skill_dmg:   { name:"Sharper Skills", desc:"VERT/HORZ damage +1.", apply(){ upgrades.skillDamageBonus += 1; } },
+    autopitch_3: { name:"Auto Pitch+", desc:"Auto Pitch now fires 3 balls.", apply(){ upgrades.autoPitchCount = Math.max(upgrades.autoPitchCount, 3); } },
+    autopitch_faster:{ name:"Rapid Pitch", desc:"Auto Pitch interval -1s (min 2s).", apply(){ upgrades.autoPitchInterval = Math.max(2.0, upgrades.autoPitchInterval - 1.0); } },
   };
 
   function getLevelUpgradeChoices(lv){
-    // Your requested progression:
-    // L1: Bigger Bat
-    // L2: Auto Pitch (2 balls / 5s)
-    if (lv === 1) return ["hitbox_plus"];   // forced
-    if (lv === 2) return ["autopitch_2"];   // forced
+    if (lv === 1) return ["hitbox_plus"];
+    if (lv === 2) return ["autopitch_2"];
 
-    // Later levels: 3 choices
-    const pool = [
-      "hitbox_plus",
-      "cooldown",
-      "hp",
-      "shield",
-      "perfect",
-      "skill_dmg",
-      "autopitch_3",
-      "autopitch_faster",
-    ];
-
-    // small helper: bias autopitch upgrades if you already have autopitch
+    const pool = ["hitbox_plus","cooldown","hp","shield","perfect","skill_dmg","autopitch_3","autopitch_faster"];
     const weighted = pool.slice();
-    if (upgrades.autoPitchCount > 0){
-      weighted.push("autopitch_3","autopitch_faster");
-    }
+    if (upgrades.autoPitchCount > 0) weighted.push("autopitch_3","autopitch_faster");
 
     const pick = [];
     while (pick.length < 3){
@@ -519,13 +662,12 @@
   }
 
   function chooseUpgradeByIndex(i){
-    const el = upgradeChoicesEl.querySelector(`.upg[data-idx="${i}"]`);
+    const el = upgradeChoicesEl.querySelector('.upg[data-idx="' + i + '"]');
     if (!el) return;
     const id = el.dataset.upg;
 
     UPGRADE_CATALOG[id]?.apply?.();
 
-    // tiny juice reward
     buffs.double = Math.max(buffs.double, 1.2);
     shakeMag = Math.max(shakeMag, 9);
     shakeT = Math.max(shakeT, 0.22);
@@ -538,56 +680,24 @@
   upgradeChoicesEl.addEventListener("pointerup", (e) => {
     const card = e.target.closest(".upg");
     if (!card) return;
-    const idx = Number(card.dataset.idx);
-    chooseUpgradeByIndex(idx);
-  });
-
-  window.addEventListener("keydown", (e) => {
-    const k = e.key.toLowerCase();
-
-    if (k === "r") resetRun();
-
-    // when upgrade modal is open, 1/2/3 selects
-    if (!upgradeOpen) return;
-    if (k === "1") chooseUpgradeByIndex(0);
-    if (k === "2") chooseUpgradeByIndex(1);
-    if (k === "3") chooseUpgradeByIndex(2);
-  });
-
-  window.addEventListener("keyup", (e) => {
-    const k = e.key.toLowerCase();
-    if (k === "a" || k === "arrowleft") input.left = false;
-    if (k === "d" || k === "arrowright") input.right = false;
-  });
-
-  // Keydown (movement/skills) — keep separate so upgrade modal still allows 1/2/3
-  window.addEventListener("keydown", (e) => {
-    const k = e.key.toLowerCase();
-    if (k === "a" || k === "arrowleft") input.left = true;
-    if (k === "d" || k === "arrowright") input.right = true;
-    if (k === " ") input.jump = true;
-    if (k === "j") input.swing = true;
-    if (k === "k") input.skillV = true;
-    if (k === "l") input.skillH = true;
+    chooseUpgradeByIndex(Number(card.dataset.idx));
   });
 
   // ===== Entities =====
   const balls = [];
   const explosions = [];
   const pickups = [];
+  const popups = [];
   let spawnT = 0;
 
-  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-
-  function circleRectHit(cx, cy, r, rx, ry, rw, rh){
-    const nx = clamp(cx, rx, rx+rw);
-    const ny = clamp(cy, ry, ry+rh);
-    const dx = cx - nx, dy = cy - ny;
-    return (dx*dx + dy*dy) <= r*r;
-  }
+  let swingToken = 0;
+  let popupStackI = 0;
 
   function startSwing(){
     if (player.swingCD > 0) return;
+    swingToken++;
+    popupStackI = 0;
+
     player.swing = true;
     player.swingTimer = player.swingWindow;
     player.swingAge = 0;
@@ -596,15 +706,12 @@
   }
 
   function spawnExplosion(x, y, big=false){
-    explosions.push({
-      x, y,
-      frame: 0,
-      t: 0,
-      fps: 24,
-      frameCount: 5,
-      size: big ? 120 : 96,
-      alive: true
-    });
+    explosions.push({ x, y, frame:0, t:0, fps:24, frameCount:5, size: big ? 120 : 96, alive:true });
+  }
+
+  function spawnPopupStacked(anchorX, anchorY, text, kind){
+    const offX = stackOffset(popupStackI++);
+    popups.push({ x: anchorX + offX, y: anchorY, vy: POPUP_RISE, t: 0, life: POPUP_LIFE, text, kind, alive: true });
   }
 
   function maybeDropPickup(x, y){
@@ -618,14 +725,7 @@
     else if (roll < 0.75) type = "magnet";
     else type = "shield";
 
-    pickups.push({
-      x, y,
-      r: 18,
-      vy: -240,
-      t: 0,
-      type,
-      alive: true
-    });
+    pickups.push({ x, y, r:18, vy:-240, t:0, type, alive:true });
   }
 
   function applyPickup(type){
@@ -638,40 +738,332 @@
     shakeT = Math.max(shakeT, 0.12);
   }
 
-  function spawnBall(W, H, kind="normal"){
-    const groundY = H * world.groundYFrac;
-    const y = groundY - (120 + Math.random()*220);
+  // ===== Auto Pitch (same as before) =====
+  const SHOT_HOMING = true;
+  const SHOT_HOMING_RANGE = 900;
+  const SHOT_TURN_RATE = 14;
+  const SHOT_LEAD_TIME = 0.20;
 
-    const speedScale = 1 + (level-1) * 0.06;
-
-    let r = 42, hpv = 1, scoreV = 10, vx = -(520 + Math.random()*260) * speedScale;
-
-    if (kind === "fast"){
-      r = 30; hpv = 1; scoreV = 18;
-      vx = -(760 + Math.random()*260) * speedScale;
+  function acquireShotTarget(s){
+    let best = null;
+    let bestScore = -Infinity;
+    for (const b of balls){
+      if (!b.alive) continue;
+      const d = Math.hypot(b.x - s.x, b.y - s.y);
+      if (d > SHOT_HOMING_RANGE) continue;
+      const score = -d + (b.toPlateDist ? (-b.toPlateDist * 0.04) : 0);
+      if (score > bestScore){ bestScore = score; best = b; }
     }
-    if (kind === "heavy"){
-      r = 52; hpv = 2; scoreV = 25;
-      vx = -(420 + Math.random()*180) * speedScale;
+    return best;
+  }
+
+  function fireAutoPitch(W, H){
+    if (upgrades.autoPitchCount <= 0) return;
+
+    const band = getContactBandFromPlate(W, H);
+    const cx = band.x + band.w/2;
+    const cy = band.y + band.h/2;
+
+    const startX = cx + (player.facing === 1 ? -22 : 22);
+    const startY = cy + 30;
+
+    for (let i = 0; i < upgrades.autoPitchCount; i++){
+      const spread = (i - (upgrades.autoPitchCount-1)/2) * 22;
+      shots.push({
+        x: startX,
+        y: startY + spread,
+        r: 14,
+        speed: 920,
+        vx: (player.facing === 1 ? 920 : -920),
+        vy: 0,
+        homing: true,
+        target: null,
+        alive: true,
+        dmg: 1,
+      });
     }
+  }
+
+  function updateShots(dt, W, H){
+    for (const s of shots){
+      if (!s.alive) continue;
+
+      if (SHOT_HOMING && s.homing){
+        if (!s.target || !s.target.alive) s.target = acquireShotTarget(s);
+        else {
+          const d = Math.hypot(s.target.x - s.x, s.target.y - s.y);
+          if (d > SHOT_HOMING_RANGE) s.target = acquireShotTarget(s);
+        }
+
+        if (s.target && s.target.alive){
+          const tx = s.target.x + (s.target.vx || 0) * SHOT_LEAD_TIME;
+          const ty = s.target.y + (s.target.vy || 0) * SHOT_LEAD_TIME;
+
+          const desired = norm2(tx - s.x, ty - s.y);
+          const cur = norm2(s.vx, s.vy);
+
+          const t = clamp01(SHOT_TURN_RATE * dt);
+          const nx = cur.x + (desired.x - cur.x) * t;
+          const ny = cur.y + (desired.y - cur.y) * t;
+          const nd = norm2(nx, ny);
+
+          s.vx = nd.x * (s.speed || 920);
+          s.vy = nd.y * (s.speed || 920);
+        }
+      }
+
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+
+      if (s.x > W + 120 || s.x < -120 || s.y > H + 120 || s.y < -120) s.alive = false;
+
+      for (const b of balls){
+        if (!b.alive) continue;
+        const dx = b.x - s.x, dy = b.y - s.y;
+        const rr = (b.r + s.r);
+        if ((dx*dx + dy*dy) <= rr*rr){
+          s.alive = false;
+          dealDamageToBall(b, s.dmg, W, H, { fromSkill:true });
+          break;
+        }
+      }
+    }
+
+    for (let i = shots.length - 1; i >= 0; i--){
+      if (!shots[i].alive) shots.splice(i, 1);
+    }
+  }
+
+  // ===== Damage =====
+  function dealDamageToBall(b, dmg, W, H, {isPerfect=false, fromSkill=false} = {}){
+    if (!b.alive) return false;
+
+    b.hp -= dmg;
+
+    hitStop = fromSkill ? 0.06 : (isPerfect ? 0.085 : 0.045);
+    shakeMag = Math.max(shakeMag, fromSkill ? 12 : (isPerfect ? 14 : 9));
+    shakeT = Math.max(shakeT, fromSkill ? 0.20 : (isPerfect ? 0.22 : 0.16));
+
+    if (b.hp > 0){
+      combo++;
+      comboTimer = COMBO_DECAY;
+      score += Math.round(6 * getMult() * (buffs.double > 0 ? 2 : 1));
+      spawnExplosion(b.x, b.y, false);
+      return true;
+    }
+
+    b.alive = false;
+
+    combo++;
+    comboTimer = COMBO_DECAY;
+
+    const mult = getMult();
+    const bonus = isPerfect ? 1.35 : 1.0;
+    const doubleOn = (buffs.double > 0) ? 2 : 1;
+
+    score += Math.round(b.scoreV * mult * bonus * doubleOn);
+    levelKills++;
+
+    spawnExplosion(b.x, b.y, isPerfect || fromSkill);
+    maybeDropPickup(b.x, b.y);
+
+    const spec = getLevelSpec(level);
+    if (!upgradeOpen){
+      if (spec.type === "kills" && levelKills >= spec.target) finishLevel();
+      if (spec.type === "boss" && levelKills >= spec.target) finishLevel();
+    }
+    return true;
+  }
+
+  function plateHitByEnemy(b){
+    b.alive = false;
+
+    if (buffs.shield > 0) buffs.shield--;
+    else hp = Math.max(0, hp - (b.kind === "boss" ? 2 : 1));
+
+    combo = 0;
+    comboTimer = 0;
+
+    shakeMag = Math.max(shakeMag, 10);
+    shakeT = Math.max(shakeT, 0.20);
+  }
+
+  // ===== Pitch spawn/move (unchanged) =====
+  function ballChance(){
+    const t = difficultyT();
+    return lerp(0.10, 0.45, t);
+  }
+
+  function pickPitchProfile(kind){
     if (kind === "boss"){
-      r = 72; hpv = 6; scoreV = 120;
-      vx = -(360 + Math.random()*120) * (1 + (level-1)*0.03);
+      const pool = ["straight","slider","sinker","cutter","splitter","changeup"];
+      return pool[(Math.random() * pool.length) | 0];
     }
+
+    const t = difficultyT();
+    const early = ["straight","straight","curve","sinker"];
+    const mid   = ["straight","curve","slider","sinker","changeup","cutter"];
+    const late  = ["curve","slider","sinker","changeup","cutter","splitter","knuckle"];
+
+    const pool = (t < 0.33) ? early : (t < 0.70) ? mid : late;
+    return pool[(Math.random() * pool.length) | 0];
+  }
+
+  function spawnEnemy(W, H, kind, plate, zone, band){
+    const t = difficultyT();
+    const speedScale = 1 + (level - 1) * 0.06;
+
+    let r = 42, hpv = 1, scoreV = 10, spd = (280 + Math.random()*120) * speedScale;
+    if (kind === "fast"){ r=30; hpv=1; scoreV=18; spd=(395 + Math.random()*160) * speedScale; }
+    if (kind === "heavy"){ r=52; hpv=2; scoreV=25; spd=(240 + Math.random()*110) * speedScale; }
+    if (kind === "boss"){ r=72; hpv=6; scoreV=120; spd=(215 + Math.random()*90) * (1 + (level-1)*0.03); }
+
+    const lane = (Math.random() * 3) | 0;
+    let x, y;
+    const edgeTopMax = H * lerp(0.52, 0.70, t);
+    if (lane === 0){ x = Math.random() * W; y = -80; }
+    else if (lane === 1){ x = -80; y = Math.random() * edgeTopMax; }
+    else { x = W + 80; y = Math.random() * edgeTopMax; }
+
+    const isBallPitch = (kind !== "boss") && (Math.random() < ballChance());
+    const profile = pickPitchProfile(kind);
+
+    const fy = band.y + band.h/2;
+    const cx = band.x + band.w/2;
+
+    const fx = isBallPitch
+      ? (cx + (Math.random() < 0.5 ? -1 : 1) * (band.w/2 + 80 + Math.random()*140))
+      : (band.x + 12 + Math.random() * (band.w - 24));
+
+    const guideY = isBallPitch
+      ? fy
+      : (zone.y + zone.h * lerp(0.30, 0.72, t) + (Math.random()*2 - 1) * 8);
+
+    const gx = isBallPitch ? fx : (zone.x + 12 + Math.random() * (zone.w - 24));
+    const gRadius = isBallPitch ? 0 : lerp(140, 75, t);
+    const breakSign = (Math.random() < 0.5) ? -1 : 1;
+
+    const totalDist = Math.hypot(fx - x, fy - y) || 1;
+    const travelDur = clamp(totalDist / spd, 0.55, 1.8);
 
     balls.push({
-      kind,
-      x: W + 80,
-      y,
-      r,
-      vx,
-      alive: true,
-      phase: Math.random()*Math.PI*2,
+      kind, x, y, r,
+      alive:true,
       hp: hpv,
       scoreV,
+      speed: spd,
+      vx:0, vy:0,
+
+      pitch: isBallPitch ? "ball" : "strike",
+      profile,
+      phase: isBallPitch ? 1 : 0,
+      gx, gy: guideY,
+      fx, fy,
+      gRadius,
+      breakSign,
+
+      knuckleSeed: Math.random() * 1000,
+
+      travelT: 0,
+      travelDur,
+
+      toPlateDist: 9999,
+      lastHitSwingToken: -1,
     });
   }
 
+  function applyPitchForces(b, baseDir, prog){
+    const t = difficultyT();
+    const breakBase = lerp(0.05, 1.0, t);
+
+    let speedMul = 1.0;
+    if (b.profile === "changeup"){
+      const fade = clamp01((prog - 0.25) / 0.55);
+      speedMul = lerp(1.12, 0.72, fade);
+    }
+    if (b.profile === "splitter"){
+      const late = clamp01((prog - 0.50) / 0.50);
+      speedMul *= lerp(1.00, 0.80, late);
+    }
+    if (b.profile === "knuckle"){
+      speedMul *= lerp(0.92, 0.86, t);
+    }
+
+    let vx = baseDir.x * b.speed * speedMul;
+    let vy = baseDir.y * b.speed * speedMul;
+
+    if (b.profile === "curve"){
+      const amt = b.speed * 0.22 * breakBase;
+      const curve = Math.sin(prog * Math.PI) * b.breakSign;
+      vx += (-baseDir.y) * amt * curve;
+      vy += ( baseDir.x) * amt * curve;
+    } else if (b.profile === "slider"){
+      const late = clamp01((prog - 0.55) / 0.45);
+      const amt = b.speed * 0.30 * breakBase * late * b.breakSign;
+      vx += (-baseDir.y) * amt;
+      vy += ( baseDir.x) * amt;
+    } else if (b.profile === "cutter"){
+      const late = clamp01((prog - 0.48) / 0.52);
+      const amt = b.speed * 0.16 * breakBase * late * b.breakSign;
+      vx += (-baseDir.y) * amt;
+      vy += ( baseDir.x) * amt;
+    } else if (b.profile === "sinker"){
+      const late = clamp01((prog - 0.55) / 0.45);
+      vy += (b.speed * 0.38 * breakBase) * late;
+    } else if (b.profile === "splitter"){
+      const late = clamp01((prog - 0.50) / 0.50);
+      vy += (b.speed * 0.60 * breakBase) * late;
+    } else if (b.profile === "knuckle"){
+      const wob = lerp(22, 58, t);
+      const s = b.knuckleSeed;
+      const n1 = Math.sin((prog * 9.0) + s) + Math.sin((prog * 14.5) + s * 1.7);
+      const n2 = Math.cos((prog * 11.2) + s * 0.9) + Math.sin((prog * 17.1) + s * 2.3);
+      vx += n1 * wob;
+      vy += n2 * wob * 0.65;
+    } else {
+      const j = lerp(0, 20, t);
+      vx += (Math.random()*2 - 1) * j;
+      vy += (Math.random()*2 - 1) * j;
+    }
+
+    return { vx, vy };
+  }
+
+  // ===== Keyboard =====
+  window.addEventListener("keydown", (e) => {
+    const k = e.key.toLowerCase();
+
+    if (k === "r"){ resetRun(); return; }
+
+    if (upgradeOpen){
+      if (k === "1") chooseUpgradeByIndex(0);
+      if (k === "2") chooseUpgradeByIndex(1);
+      if (k === "3") chooseUpgradeByIndex(2);
+      return;
+    }
+
+    if (k === "t") toggleStance();
+    if (k === "a") setStance("righty");
+    if (k === "d") setStance("lefty");
+
+    if (k === "j") input.swing = true;
+    if (k === "k") input.skillV = true;
+    if (k === "l") input.skillH = true;
+
+    const step = 0.11;
+    if (e.key === "ArrowLeft")  aim.nx = clamp(aim.nx - step, -1, 1);
+    if (e.key === "ArrowRight") aim.nx = clamp(aim.nx + step, -1, 1);
+    if (e.key === "ArrowUp")    aim.ny = clamp(aim.ny - step, -1, 1);
+    if (e.key === "ArrowDown")  aim.ny = clamp(aim.ny + step, -1, 1);
+
+    if (e.key.startsWith("Arrow")){
+      const r = joyEl.getBoundingClientRect();
+      const maxR = (Math.min(r.width, r.height) * 0.5) - 20;
+      setKnob(aim.nx * maxR, aim.ny * maxR);
+    }
+  });
+
+  // ===== Run control =====
   function resetRun(){
     score = 0;
     hp = 3;
@@ -679,7 +1071,6 @@
     combo = 0;
     comboTimer = 0;
 
-    // reset upgrades (fresh run)
     upgrades.hitboxBonus = 0;
     upgrades.cdMul = 1.0;
     upgrades.perfectBonus = 0.00;
@@ -698,15 +1089,7 @@
     buffs.magnet = 0;
     buffs.shield = 0;
 
-    player.x = 220;
-    player.y = 0;
-    player.vx = 0;
-    player.vy = 0;
-    player.onGround = false;
-    player.facing = 1;
-
-    player.maxJumps = 2;
-    player.jumpsLeft = player.maxJumps;
+    setStance("righty");
 
     player.swing = false;
     player.swingTimer = 0;
@@ -723,16 +1106,24 @@
     explosions.length = 0;
     pickups.length = 0;
     shots.length = 0;
+    popups.length = 0;
+
     spawnT = 0;
 
     hitStop = 0;
     shakeT = 0;
     shakeMag = 0;
 
-    // close modal if open
     upgradeOpen = false;
     pendingNextLevel = null;
     upgradeModal.hidden = true;
+
+    swingToken = 0;
+    popupStackI = 0;
+
+    aim.nx = 0;
+    aim.ny = 0;
+    setKnob(0, 0);
   }
 
   function startLevel(lv){
@@ -745,110 +1136,15 @@
     balls.length = 0;
     explosions.length = 0;
     pickups.length = 0;
-
-    const spec = getLevelSpec(level);
-    if (spec.type === "boss"){
-      const W = canvas.clientWidth, H = canvas.clientHeight;
-      spawnBall(W, H, "boss");
-    }
+    popups.length = 0;
   }
 
   function finishLevel(){
-    // Open upgrade picker and pause game until chosen
     openUpgradeModal(level + 1);
-  }
-
-  // ===== Friendly Auto Pitch =====
-  function fireAutoPitch(){
-    if (upgrades.autoPitchCount <= 0) return;
-
-    const baseY = player.y + 92;
-    const startX = player.x + player.w - 6;
-
-    for (let i = 0; i < upgrades.autoPitchCount; i++){
-      const spread = (i - (upgrades.autoPitchCount-1)/2) * 22;
-      shots.push({
-        x: startX,
-        y: baseY + spread,
-        r: 14,
-        vx: 920,
-        alive: true,
-        dmg: 1,
-      });
-    }
-  }
-
-  function updateShots(dt, W, H){
-    for (const s of shots){
-      if (!s.alive) continue;
-      s.x += s.vx * dt;
-
-      if (s.x > W + 60) s.alive = false;
-
-      for (const b of balls){
-        if (!b.alive) continue;
-        const dx = b.x - s.x, dy = b.y - s.y;
-        const rr = (b.r + s.r);
-        if ((dx*dx + dy*dy) <= rr*rr){
-          s.alive = false;
-          dealDamageToBall(b, s.dmg, W, H, { fromSkill:true });
-          break;
-        }
-      }
-    }
-    for (let i = shots.length - 1; i >= 0; i--){
-      if (!shots[i].alive) shots.splice(i, 1);
-    }
-  }
-
-  // Unified ball damage (used by swing & skills & shots)
-  function dealDamageToBall(b, dmg, W, H, {isPerfect=false, fromSkill=false} = {}){
-    if (!b.alive) return false;
-
-    b.hp -= dmg;
-
-    // juice
-    hitStop = fromSkill ? 0.06 : (isPerfect ? 0.085 : 0.045);
-    shakeMag = Math.max(shakeMag, fromSkill ? 12 : (isPerfect ? 14 : 9));
-    shakeT = Math.max(shakeT, fromSkill ? 0.20 : (isPerfect ? 0.22 : 0.16));
-
-    // chip hits (heavy/boss)
-    if (b.hp > 0){
-      combo++;
-      comboTimer = COMBO_DECAY;
-      score += Math.round(6 * getMult() * (buffs.double > 0 ? 2 : 1));
-      spawnExplosion(b.x, b.y, false);
-      return true;
-    }
-
-    // killed
-    b.alive = false;
-
-    combo++;
-    comboTimer = COMBO_DECAY;
-
-    const mult = getMult();
-    const bonus = isPerfect ? 1.35 : 1.0;
-    const doubleOn = (buffs.double > 0) ? 2 : 1;
-
-    score += Math.round(b.scoreV * mult * bonus * doubleOn);
-    levelKills++;
-
-    spawnExplosion(b.x, b.y, isPerfect || fromSkill);
-    maybeDropPickup(b.x, b.y);
-
-    // objective check
-    const spec = getLevelSpec(level);
-    if (!upgradeOpen){
-      if (spec.type === "kills" && levelKills >= spec.target) finishLevel();
-      if (spec.type === "boss" && levelKills >= spec.target) finishLevel();
-    }
-    return true;
   }
 
   // ===== Main step =====
   function step(dt, W, H){
-    // pause gameplay while upgrade picker is open
     if (upgradeOpen) return;
 
     if (hitStop > 0){
@@ -856,26 +1152,21 @@
       return;
     }
 
-    // buffs tick
     if (buffs.slowmo > 0) buffs.slowmo = Math.max(0, buffs.slowmo - dt);
     if (buffs.double > 0) buffs.double = Math.max(0, buffs.double - dt);
     if (buffs.magnet > 0) buffs.magnet = Math.max(0, buffs.magnet - dt);
 
-    // slowmo timeScale
     const timeScale = (buffs.slowmo > 0) ? 0.65 : 1.0;
     const sdt = dt * timeScale;
 
-    // level timers
     const spec = getLevelSpec(level);
     levelTime += sdt;
 
-    // combo decay
     if (combo > 0){
       comboTimer -= sdt;
       if (comboTimer <= 0) combo = 0;
     }
 
-    // cooldowns
     if (player.swingCD > 0) player.swingCD = Math.max(0, player.swingCD - sdt);
     player.skillVCD = Math.max(0, player.skillVCD - sdt);
     player.skillHCD = Math.max(0, player.skillHCD - sdt);
@@ -883,130 +1174,131 @@
     if (fxVertT > 0) fxVertT = Math.max(0, fxVertT - sdt);
     if (fxHorzT > 0) fxHorzT = Math.max(0, fxHorzT - sdt);
 
-    // Auto Pitch tick
     if (upgrades.autoPitchCount > 0){
       upgrades.autoPitchT += sdt;
       if (upgrades.autoPitchT >= upgrades.autoPitchInterval){
         upgrades.autoPitchT = 0;
-        fireAutoPitch();
+        fireAutoPitch(W, H);
       }
     }
 
-    // move
-    const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    player.vx = dir * player.speed;
-    if (dir !== 0) player.facing = dir;
-
-    // jump (double jump)
-    if (input.jump && player.jumpsLeft > 0){
-      const isSecond = (player.jumpsLeft === 1);
-      player.vy = player.jumpVel * (isSecond ? 0.92 : 1.0);
-      player.onGround = false;
-      player.jumpsLeft--;
+    for (const p of popups){
+      if (!p.alive) continue;
+      p.t += sdt;
+      p.y += p.vy * sdt;
+      if (p.t >= p.life) p.alive = false;
     }
-    input.jump = false;
+    for (let i = popups.length - 1; i >= 0; i--){
+      if (!popups[i].alive) popups.splice(i, 1);
+    }
 
-    // swing
+    const plate = getPlate(W, H);
+    const band  = getContactBandFromPlate(W, H);
+
+    const bandCx = band.x + band.w / 2;
+    const playerCenterX = bandCx + (player.stance === "righty" ? -STANCE_OFFSET : STANCE_OFFSET);
+    player.x = playerCenterX - player.w/2;
+    player.y = clamp(plate.y - player.h + 14, 0, H - player.h - 10);
+
+    const zone = getStrikeZoneFromPlayer(W, H, player.y, player.h);
+    lastZone = zone;
+
+    const aimPt = getAimPoint(zone);
+
     if (input.swing) startSwing();
     input.swing = false;
 
-    // physics
-    const groundY = H * world.groundYFrac;
-    player.vy += world.gravity * sdt;
-    player.x += player.vx * sdt;
-    player.y += player.vy * sdt;
-
-    player.x = clamp(player.x, 40, W - 40 - player.w);
-
-    // ground
-    const footY = player.y + player.h;
-    if (footY >= groundY){
-      player.y = groundY - player.h;
-      player.vy = 0;
-      player.onGround = true;
-      player.jumpsLeft = player.maxJumps;
-    }
-
-    // swing timers
     if (player.swing){
-      player.swingTimer -= sdt;
+      player.swingTimer = Math.max(0, player.swingTimer - sdt);
       player.swingAge += sdt;
+      player.swingPoseTimer = Math.max(0, player.swingPoseTimer - sdt);
       if (player.swingTimer <= 0) player.swing = false;
     } else {
-      player.swingAge = 999;
-    }
-
-    if (player.swingPoseTimer > 0){
+      player.swingAge = Math.min(999, player.swingAge + sdt);
       player.swingPoseTimer = Math.max(0, player.swingPoseTimer - sdt);
     }
 
-    // spawn logic
-    if (!upgradeOpen){
-      spawnT += sdt;
+    spawnT += sdt;
+    const baseInterval = 1.05;
+    const interval = Math.max(0.42, baseInterval - (level-1) * 0.05);
 
-      const baseInterval = 1.05;
-      const interval = Math.max(0.42, baseInterval - (level-1) * 0.05);
+    const allowSpawns = (spec.type !== "boss") || (level >= 10);
+    if (allowSpawns && spawnT >= interval){
+      spawnT = 0;
 
-      const allowSpawns = (spec.type !== "boss") || (level >= 10);
-      if (allowSpawns && spawnT >= interval){
-        spawnT = 0;
+      const r = Math.random();
+      let kind = "normal";
 
-        const r = Math.random();
-        let kind = "normal";
+      const fastChance = Math.min(0.32, 0.08 + (level-1)*0.02);
+      const heavyChance = Math.min(0.26, 0.06 + (level-1)*0.015);
 
-        const fastChance = Math.min(0.30, 0.08 + (level-1)*0.02);
-        const heavyChance = Math.min(0.24, 0.06 + (level-1)*0.015);
+      if (r < fastChance) kind = "fast";
+      else if (r < fastChance + heavyChance) kind = "heavy";
 
-        if (r < fastChance) kind = "fast";
-        else if (r < fastChance + heavyChance) kind = "heavy";
+      spawnEnemy(W, H, kind, plate, zone, band);
 
-        spawnBall(W, H, kind);
-
-        if (level >= 7 && Math.random() < 0.10){
-          spawnBall(W, H, Math.random() < 0.5 ? "fast" : "normal");
-        }
+      if (level >= 7 && Math.random() < 0.10){
+        spawnEnemy(W, H, Math.random() < 0.5 ? "fast" : "normal", plate, zone, band);
       }
     }
 
-    // update balls
+    if (spec.type === "boss" && balls.length === 0){
+      spawnEnemy(W, H, "boss", plate, zone, band);
+    }
+
+    const tx = band.x + band.w/2;
+    const ty = band.y + band.h/2;
+
     for (const b of balls){
+      if (!b.alive) continue;
+
+      b.travelT += sdt;
+      const prog = clamp01(b.travelT / (b.travelDur || 1));
+
+      if (b.phase === 0){
+        const d = Math.hypot(b.gx - b.x, b.gy - b.y);
+        if (d <= b.gRadius) b.phase = 1;
+      }
+
+      const aimX = (b.phase === 0) ? b.gx : b.fx;
+      const aimY = (b.phase === 0) ? b.gy : b.fy;
+
+      const baseDir = norm2(aimX - b.x, aimY - b.y);
+      const vel = applyPitchForces(b, baseDir, prog);
+
+      b.vx = vel.vx;
+      b.vy = vel.vy;
+
       b.x += b.vx * sdt;
-      b.phase += sdt * (b.kind === "boss" ? 3 : 6);
-      b.y += Math.sin(b.phase) * (b.kind === "boss" ? 2.0 : 0.6);
+      b.y += b.vy * sdt;
 
-      if (b.x < -120 && b.alive){
+      b.toPlateDist = Math.hypot(tx - b.x, ty - b.y);
+
+      if (b.y + b.r >= band.bot){
+        const hitsPlateLane = circleRectHit(b.x, b.y, b.r, band.x, band.y, band.w, band.h);
+        if (hitsPlateLane) plateHitByEnemy(b);
+        else b.alive = false;
+        continue;
+      }
+
+      if (b.x < -220 || b.x > W + 220 || b.y < -220 || b.y > H + 220){
         b.alive = false;
-
-        if (buffs.shield > 0){
-          buffs.shield--;
-        } else {
-          hp = Math.max(0, hp - (b.kind === "boss" ? 2 : 1));
-        }
-
-        combo = 0;
-        comboTimer = 0;
-
-        shakeMag = Math.max(shakeMag, 10);
-        shakeT = Math.max(shakeT, 0.20);
       }
     }
 
-    // update pickups
     for (const p of pickups){
       p.t += sdt;
       p.vy += 900 * sdt;
       p.y += p.vy * sdt;
-      p.x -= 60 * sdt;
+      p.x += (tx - p.x) * sdt * 0.25;
 
-      const hit = circleRectHit(p.x, p.y, p.r, player.x, player.y, player.w, player.h);
-      if (hit){
+      if (circleRectHit(p.x, p.y, p.r, player.x, player.y, player.w, player.h)){
         p.alive = false;
         applyPickup(p.type);
       }
-      if (p.y > H + 60) p.alive = false;
+      if (p.y > H + 80) p.alive = false;
     }
 
-    // update explosions
     for (const ex of explosions){
       ex.t += sdt;
       const fd = 1 / ex.fps;
@@ -1020,110 +1312,74 @@
       }
     }
 
-    // update friendly shots
     updateShots(sdt, W, H);
 
-    // ===== SKILLS =====
-    // VERT: hit everything in a vertical column in front of player (global top->bottom)
-    if (input.skillV && player.skillVCD <= 0){
-      player.skillVCD = player.skillVCDDur * upgrades.cdMul;
-      fxVertT = 0.22;
+    // ===== Swing overlap grading (normalized to BAT circle) =====
+    const swingActive = (player.swing || player.swingAge <= player.swingWindow + LATE_GRACE);
+    if (swingActive){
+      const batR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
 
-      const stripeW = 110;
-      const stripeX = (player.facing === 1)
-        ? (player.x + player.w + 30)
-        : (player.x - 30 - stripeW);
+      const len = clamp(upgrades.perfectBonus * 1.25, 0, 0.22);
+      const thrPerfect = clamp(OVERLAP_PERFECT - len, 0.60, 0.98);
+      const thrGood    = clamp(OVERLAP_GOOD    - len, 0.45, 0.95);
 
-      const dmg = 2 + upgrades.skillDamageBonus;
-
-      for (const b of balls){
-        if (!b.alive) continue;
-        if (b.x >= stripeX && b.x <= stripeX + stripeW){
-          dealDamageToBall(b, dmg, W, H, { fromSkill:true });
-        }
-      }
-    }
-    input.skillV = false;
-
-    // HORZ: hit everything in a horizontal row band (global left->right)
-    if (input.skillH && player.skillHCD <= 0){
-      player.skillHCD = player.skillHCDDur * upgrades.cdMul;
-      fxHorzT = 0.22;
-
-      const bandY = player.y + 95;
-      const bandH = 90;
-
-      const dmg = 2 + upgrades.skillDamageBonus;
+      const expandedZone = {
+        x: zone.x - CHASE_MARGIN,
+        y: zone.y - CHASE_MARGIN,
+        w: zone.w + CHASE_MARGIN*2,
+        h: zone.h + CHASE_MARGIN*2,
+      };
 
       for (const b of balls){
         if (!b.alive) continue;
-        if (b.y >= bandY && b.y <= bandY + bandH){
-          dealDamageToBall(b, dmg, W, H, { fromSkill:true });
-        }
-      }
-    }
-    input.skillH = false;
+        if (b.lastHitSwingToken === swingToken) continue;
 
-    // ===== SWING HITBOX (pulled in closer + upgrade scaling) =====
-    if (player.swing){
-      let swingW = 120; // was 140
-      let swingH = 95;  // was 110
+        const inHittable = circleRectHit(b.x, b.y, b.r, expandedZone.x, expandedZone.y, expandedZone.w, expandedZone.h);
+        if (!inHittable) continue;
 
-      // level upgrades increase hitbox
-      swingW += upgrades.hitboxBonus;
-      swingH += Math.round(upgrades.hitboxBonus * 0.75);
+        const d = Math.hypot(b.x - aimPt.x, b.y - aimPt.y);
 
-      if (buffs.magnet > 0){
-        swingW += 24;
-        swingH += 18;
-      }
+        const overlapA = circleOverlapArea(b.r, batR, d);
+        const batA = Math.PI * batR * batR;
+        const frac = overlapA / (batA || 1); // how much of your circle is "on the ball"
 
-      const inset = 28;
-      const sx = (player.facing === 1)
-        ? (player.x + player.w - inset)
-        : (player.x - swingW + inset);
+        if (frac <= 0.001) continue;
 
-      const sy = player.y + 68;
+        const grade =
+          (frac >= thrPerfect) ? "perfect" :
+          (frac >= thrGood)    ? "good" :
+          "normal";
 
-      const perfectWindow = 0.055 + upgrades.perfectBonus;
-      const isPerfect = player.swingAge <= perfectWindow;
+        const didHit = dealDamageToBall(b, 1, W, H, { isPerfect: (grade === "perfect"), fromSkill: false });
+        if (didHit){
+          b.lastHitSwingToken = swingToken;
 
-      for (const b of balls){
-        if (!b.alive) continue;
-        if (circleRectHit(b.x, b.y, b.r, sx, sy, swingW, swingH)){
-          dealDamageToBall(b, 1, W, H, { isPerfect, fromSkill:false });
+          if (grade === "good"){
+            spawnPopupStacked(aimPt.x, aimPt.y - 22, "GOOD", "good");
+            combo += 1; comboTimer = COMBO_DECAY;
+            score += 2 * getMult();
+          } else if (grade === "perfect"){
+            spawnPopupStacked(aimPt.x, aimPt.y - 22, "PERFECT!", "perfect");
+            combo += 3; comboTimer = COMBO_DECAY;
+            score += 6 * getMult();
+          }
         }
       }
     }
 
-    // survival objective check
-    if (spec.type === "survive"){
-      if (levelTime >= spec.target){
-        finishLevel();
-      }
-    }
+    if (spec.type === "survive" && levelTime >= spec.target) finishLevel();
 
-    // cleanup
-    for (let i = balls.length - 1; i >= 0; i--){
-      if (!balls[i].alive) balls.splice(i, 1);
-    }
-    for (let i = explosions.length - 1; i >= 0; i--){
-      if (!explosions[i].alive) explosions.splice(i, 1);
-    }
-    for (let i = pickups.length - 1; i >= 0; i--){
-      if (!pickups[i].alive) pickups.splice(i, 1);
-    }
+    for (let i = balls.length - 1; i >= 0; i--) if (!balls[i].alive) balls.splice(i, 1);
+    for (let i = explosions.length - 1; i >= 0; i--) if (!explosions[i].alive) explosions.splice(i, 1);
+    for (let i = pickups.length - 1; i >= 0; i--) if (!pickups[i].alive) pickups.splice(i, 1);
 
-    // banner timer
     if (levelBannerT > 0) levelBannerT = Math.max(0, levelBannerT - sdt);
 
-    // shake
     if (shakeT > 0){
       shakeT = Math.max(0, shakeT - dt);
       shakeMag = Math.max(0, shakeMag - dt * 60);
     }
 
-    // UI
     const mult = getMult();
     const shieldTxt = buffs.shield > 0 ? `🛡${buffs.shield} ` : "";
     const slowTxt = buffs.slowmo > 0 ? "🕒 " : "";
@@ -1140,14 +1396,13 @@
     const cdH = player.skillHCD > 0 ? player.skillHCD.toFixed(1) : "READY";
 
     topbar.textContent =
-      `Lv ${level} (${getTheme(level)}) • ${objTxt}\n` +
+      `Lv ${level} (${getTheme(level)}) • ${objTxt} • ${player.stance.toUpperCase()}\n` +
       `Score ${score} • HP ${hp} • Combo ${combo} • x${mult} • ${shieldTxt}${slowTxt}${dblTxt}${magTxt}${apTxt}\n` +
       `VERT ${cdV} • HORZ ${cdH}`;
   }
 
   // ===== Draw =====
   function draw(W, H){
-    // camera shake
     let camX = 0, camY = 0;
     if (shakeT > 0){
       camX = (Math.random()*2 - 1) * shakeMag;
@@ -1157,7 +1412,6 @@
     ctx.save();
     ctx.translate(camX, camY);
 
-    // Background (theme-based)
     const theme = getTheme(level);
     const bg = (theme === "emoji" && IMG.bg2) ? IMG.bg2 : IMG.bg;
 
@@ -1169,65 +1423,87 @@
       else { dw = W; dh = W / ar; dx = 0; dy = (H - dh)/2; }
       ctx.drawImage(bg, dx, dy, dw, dh);
     } else {
-      ctx.clearRect(-camX, -camY, W, H);
       ctx.fillStyle = "#101a3a";
       ctx.fillRect(0,0,W,H);
     }
 
-    // Ground shadow
-    const groundY = H * world.groundYFrac;
+    const plate = getPlate(W, H);
+    const band  = getContactBandFromPlate(W, H);
+    const zone  = getStrikeZoneFromPlayer(W, H, player.y, player.h);
+    lastZone = zone;
+
+    const aimPt = getAimPoint(zone);
+    const batR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
+
+    if (STRIKE_ZONE_VISIBLE){
+      ctx.save();
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = "#00ffff";
+      ctx.fillRect(zone.x, zone.y, zone.w, zone.h);
+      ctx.globalAlpha = 0.92;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(0,255,255,0.95)";
+      ctx.strokeRect(zone.x, zone.y, zone.w, zone.h);
+
+      ctx.globalAlpha = 0.28;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.strokeRect(zone.x - CHASE_MARGIN, zone.y - CHASE_MARGIN, zone.w + CHASE_MARGIN*2, zone.h + CHASE_MARGIN*2);
+      ctx.restore();
+    }
+
+    // bat circle (lighter fill so it doesn't "cover the box")
+    ctx.save();
     ctx.globalAlpha = 0.22;
+    ctx.fillStyle = "rgba(0,0,0,0.60)";
+    ctx.beginPath();
+    ctx.arc(aimPt.x + 2, aimPt.y + 2, batR, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.10;
+    ctx.fillStyle = "rgba(255,255,255,0.90)";
+    ctx.beginPath();
+    ctx.arc(aimPt.x, aimPt.y, batR, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.88;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(255,255,255,0.92)";
+    ctx.beginPath();
+    ctx.arc(aimPt.x, aimPt.y, batR, 0, Math.PI*2);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.70;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(aimPt.x - 14, aimPt.y);
+    ctx.lineTo(aimPt.x + 14, aimPt.y);
+    ctx.moveTo(aimPt.x, aimPt.y - 14);
+    ctx.lineTo(aimPt.x, aimPt.y + 14);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.globalAlpha = 0.18;
     ctx.fillStyle = "#000";
-    ctx.fillRect(0, groundY, W, H-groundY);
+    ctx.fillRect(0, band.y, W, H - band.y);
     ctx.globalAlpha = 1;
 
-    // Skill FX overlays
-    if (fxVertT > 0){
-      const a = fxVertT / 0.22;
-      ctx.globalAlpha = 0.95 * a;
+    // plate marker
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.ellipse(plate.x, plate.y + 18, 46, 16, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
 
-      const stripeW = 110;
-      const stripeX = (player.facing === 1)
-        ? (player.x + player.w + 30)
-        : (player.x - 30 - stripeW);
-
-      const im = IMG.skillV;
-      if (im){
-        ctx.drawImage(im, stripeX - 20, 0, stripeW + 40, H);
-      } else {
-        ctx.globalAlpha = 0.22 * a;
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(stripeX, 0, stripeW, H);
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    if (fxHorzT > 0){
-      const a = fxHorzT / 0.22;
-      ctx.globalAlpha = 0.95 * a;
-
-      const bandY = player.y + 95;
-      const bandH = 90;
-
-      const im = IMG.skillH;
-      if (im){
-        ctx.drawImage(im, 0, bandY - 10, W, bandH + 20);
-      } else {
-        ctx.globalAlpha = 0.22 * a;
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(0, bandY, W, bandH);
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    // Player (swap to follow-through pose)
+    // player
     const useSwingPose = player.swingPoseTimer > 0;
     const pimg = useSwingPose ? IMG.pSwingFollow : IMG.player;
 
     if (pimg){
       ctx.save();
-      const px = player.x;
-      const py = player.y;
+      const px = player.x, py = player.y;
       if (player.facing === -1){
         ctx.translate(px + player.w/2, 0);
         ctx.scale(-1, 1);
@@ -1240,100 +1516,70 @@
       ctx.fillRect(player.x, player.y, player.w, player.h);
     }
 
-    // Friendly shots (Auto Pitch)
-    const shotImg = IMG.ball; // keep consistent
+    // friendly shots
+    const shotImg = IMG.ball;
     for (const s of shots){
       if (!s.alive) continue;
       const size = s.r * 2;
       if (shotImg) ctx.drawImage(shotImg, s.x - s.r, s.y - s.r, size, size);
       else {
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-        ctx.fillStyle = "#fff";
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+        ctx.fillStyle = "#fff"; ctx.fill();
       }
     }
 
-    // Enemies (theme-based sprite)
+    // enemies
     const enemyImg = (theme === "emoji" && IMG.enemy2) ? IMG.enemy2 : IMG.ball;
-
     for (const b of balls){
       if (!b.alive) continue;
 
       const size = b.r * 2;
-      if (enemyImg){
-        ctx.drawImage(enemyImg, b.x - b.r, b.y - b.r, size, size);
-      } else {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y + b.r * 0.60, b.r * 0.92, b.r * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.65)";
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 4;
+
+      if (enemyImg) ctx.drawImage(enemyImg, b.x - b.r, b.y - b.r, size, size);
+      else {
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
         ctx.fillStyle = b.kind === "boss" ? "#ffcc33" : "#ff3b3b";
         ctx.fill();
       }
-
-      // boss HP bar
-      if (b.kind === "boss"){
-        const w = 120, h = 10;
-        const px = b.x - w/2, py = b.y - b.r - 18;
-        ctx.globalAlpha = 0.75;
-        ctx.fillStyle = "#000";
-        ctx.fillRect(px, py, w, h);
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = "#fff";
-        const frac = clamp(b.hp / 6, 0, 1);
-        ctx.fillRect(px+1, py+1, (w-2)*frac, h-2);
-      }
+      ctx.restore();
     }
 
-    // Pickups
-    for (const p of pickups){
-      ctx.globalAlpha = 0.9;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-      ctx.fillStyle = "#ffffff";
-      ctx.fill();
-      ctx.globalAlpha = 1;
+    // popups
+    for (const p of popups){
+      const t = clamp01(p.t / p.life);
+      const a = 1 - t;
+      const bump = 1 + Math.sin(Math.min(1, t) * Math.PI) * 0.20;
 
-      ctx.fillStyle = "#0b1020";
-      ctx.font = "900 14px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.save();
+      ctx.globalAlpha = 0.95 * a;
       ctx.textAlign = "center";
-      const label = p.type === "slowmo" ? "S" : p.type === "double" ? "2X" : p.type === "magnet" ? "M" : "🛡";
-      ctx.fillText(label, p.x, p.y + 5);
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(0,0,0,0.55)";
+      ctx.shadowBlur = 10;
+
+      const fontSize = p.kind === "perfect" ? 34 : p.kind === "good" ? 28 : 24;
+      ctx.font = `950 ${Math.round(fontSize * bump)}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.fillStyle = p.kind === "perfect" ? "#ffd54a" : p.kind === "good" ? "#7cf7ff" : "#ffffff";
+
+      const safeX = clamp(p.x, 50, W - 50);
+      ctx.fillText(p.text, safeX, p.y);
+      ctx.restore();
     }
 
-    // Explosions
-    const exImg = IMG.explosion;
-    if (exImg){
-      for (const ex of explosions){
-        const fw = exImg.width / ex.frameCount;
-        const fh = exImg.height;
-        const sx = ex.frame * fw;
-        ctx.drawImage(
-          exImg,
-          sx, 0, fw, fh,
-          ex.x - ex.size/2,
-          ex.y - ex.size/2,
-          ex.size,
-          ex.size
-        );
-      }
-    }
-
-    // Level banner
-    const spec = getLevelSpec(level);
-    if (levelBannerT > 0 && hp > 0){
-      const a = clamp(levelBannerT / 1.4, 0, 1);
-      ctx.globalAlpha = 0.75 * a;
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, W, 86);
-      ctx.globalAlpha = 1 * a;
-      ctx.fillStyle = "#fff";
-      ctx.font = "900 28px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-      ctx.textAlign = "left";
-      ctx.fillText(spec.banner, 16, 54);
-      ctx.globalAlpha = 1;
-    }
-
-    // Game over
     if (hp <= 0){
       ctx.globalAlpha = 0.65;
       ctx.fillStyle = "#000";
@@ -1365,15 +1611,11 @@
     requestAnimationFrame(loop);
   }
 
-  // ===== Boot =====
-  Promise.all(ASSETS).then((results) => {
-    console.log("Assets:", results);
-  }).finally(() => {
+  Promise.all(ASSETS).finally(() => {
     resize();
     resetRun();
     requestAnimationFrame(loop);
   });
-
 })();
 </script>
 </body>
