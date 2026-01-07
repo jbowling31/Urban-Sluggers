@@ -4,7 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport"
   content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no" />
-
 <title>Urban Slugger Prototype</title>
 <style>
   html, body { margin:0; height:100%; background:#0b1020; overflow:hidden; }
@@ -16,72 +15,104 @@
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
     color:#fff;
     pointer-events:none;
-    
   }
+
   .topbar{
     position:absolute; left:10px; top:10px;
     background: rgba(0,0,0,.45);
     padding:8px 10px;
     border-radius:12px;
-    pointer-events:none;
     font-weight:800;
     line-height:1.15;
     max-width: calc(100% - 20px);
     white-space: pre-line;
+    z-index: 5;
   }
+
   .hint{
     position:absolute; right:10px; top:10px;
     background: rgba(0,0,0,.35);
     padding:8px 10px;
     border-radius:12px;
     font-size:12px;
-    pointer-events:none;
     text-align:right;
     white-space: pre-line;
+    z-index: 5;
   }
 
+  .restartBtn{
+    position:absolute;
+    right: 10px;
+    top: 92px;
+    width: 108px;
+    height: 44px;
+    border-radius: 14px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    background: rgba(255,255,255,.10);
+    border: 1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+
+    font-weight: 950;
+    pointer-events:auto;
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:none;
+    z-index: 6;
+  }
+  .restartBtn:active { transform: translateY(1px); }
+
   .controls{
-    position:absolute; left:0; right:0; bottom:0;
+    position:absolute;
+    left:0; right:0; bottom:0;
     display:flex;
     justify-content:space-between;
     align-items:flex-end;
-    gap:14px;
+    gap:12px;
     pointer-events:auto;
 
-    padding: 14px;
-    padding-left:  calc(14px + env(safe-area-inset-left));
-    padding-right: calc(14px + env(safe-area-inset-right));
-    padding-bottom:calc(14px + env(safe-area-inset-bottom));
+    padding: 12px;
+    padding-left:  calc(12px + env(safe-area-inset-left));
+    padding-right: calc(12px + env(safe-area-inset-right));
+    padding-bottom:calc(12px + env(safe-area-inset-bottom));
+
+    z-index: 10; /* below modal */
   }
 
   .leftCol{
     display:grid;
     grid-template-columns: 1fr;
-    gap:12px;
+    gap:10px;
     align-items:end;
     pointer-events:auto;
   }
 
   .stanceRow{
     display:grid;
-    grid-template-columns: 72px 72px 72px;
-    gap:12px;
+    grid-template-columns: 62px 62px 62px;
+    gap:10px;
     justify-content:start;
     pointer-events:auto;
   }
 
   .btnCol{
     display:grid;
-    grid-template-columns: 72px 72px;
-    grid-template-rows: 72px 72px;
-    gap:12px;
+    grid-template-columns: 62px 62px;
+    grid-template-rows: 62px 62px;
+    gap:10px;
     justify-content:end;
     pointer-events:auto;
   }
+
   .wide{ grid-column: 1 / span 2; }
 
   .btn{
-    width:72px; height:72px; border-radius:18px;
+    width:62px; height:62px;
+    border-radius:16px;
     background: rgba(255,255,255,.10);
     border: 1px solid rgba(255,255,255,.18);
     backdrop-filter: blur(6px);
@@ -90,13 +121,14 @@
     display:flex; align-items:center; justify-content:center;
     user-select:none; -webkit-user-select:none;
     touch-action:none;
+    font-size: 12px;
   }
   .btn:active { transform: translateY(1px); }
 
-  /* ===== Joystick ===== */
+  /* Joystick (smaller) */
   .joy{
-    width: 168px;
-    height: 168px;
+    width: 140px;
+    height: 140px;
     border-radius: 999px;
     background: rgba(255,255,255,.08);
     border: 1px solid rgba(255,255,255,.18);
@@ -109,14 +141,14 @@
   .joy::after{
     content:"";
     position:absolute;
-    inset: 18px;
+    inset: 15px;
     border-radius: 999px;
     border: 1px dashed rgba(255,255,255,.18);
     opacity:.65;
   }
   .joyKnob{
-    width: 70px;
-    height: 70px;
+    width: 58px;
+    height: 58px;
     border-radius: 999px;
     background: rgba(255,255,255,.18);
     border: 1px solid rgba(255,255,255,.22);
@@ -130,24 +162,26 @@
     position:absolute;
     left:50%;
     top:50%;
-    transform: translate(-50%, 52px);
-    font-size: 11px;
+    transform: translate(-50%, 44px);
+    font-size: 10px;
     font-weight: 950;
     opacity: .75;
     pointer-events:none;
     white-space:nowrap;
   }
 
-  /* ===== Upgrade Modal ===== */
+  /* Upgrade modal ON TOP of everything */
   .modal{
     position:absolute; inset:0;
     display:flex; align-items:center; justify-content:center;
-    background: rgba(0,0,0,.55);
+    background: rgba(0,0,0,.60);
     pointer-events:auto;
     padding: 18px;
     padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    z-index: 1000;
   }
   .modal[hidden]{ display:none; }
+
   .panel{
     width:min(560px, 94vw);
     background: rgba(15,18,35,.92);
@@ -200,31 +234,6 @@
     }
     canvas, .hud { display: none; }
   }
-  .restartBtn{
-  position:absolute;
-  right: 10px;
-  top: 92px; /* sits under the hint */
-  width: 108px;
-  height: 44px;
-  border-radius: 14px;
-
-  display:flex;
-  align-items:center;
-  justify-content:center;
-
-  background: rgba(255,255,255,.10);
-  border: 1px solid rgba(255,255,255,.18);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-
-  font-weight: 950;
-  pointer-events:auto;
-  user-select:none;
-  -webkit-user-select:none;
-  touch-action:none;
-}
-.restartBtn:active { transform: translateY(1px); }
-
 </style>
 <link rel="icon" href="data:,">
 </head>
@@ -236,13 +245,13 @@
   <div class="hud">
     <div class="topbar" id="topbar">Loading…</div>
     <div class="hint" id="hint">
-      <div class="restartBtn" id="btnRestart">RESTART</div>
-
 PC: Mouse aim • Click swing
 Keys: Arrows aim • J swing
 K VERT • L HORZ • T toggle
 R restart
     </div>
+
+    <div class="restartBtn" id="btnRestart">RESTART</div>
 
     <div class="modal" id="upgradeModal" hidden>
       <div class="panel">
@@ -277,39 +286,25 @@ R restart
 
 <script>
 (() => {
-  // --- Prevent mobile zoom (pinch + double-tap) ---
-document.addEventListener(
-  "touchmove",
-  (e) => {
+  // Prevent mobile zoom (pinch + double-tap)
+  document.addEventListener("touchmove", (e) => {
     if (e.touches && e.touches.length > 1) e.preventDefault();
-  },
-  { passive: false }
-);
+  }, { passive: false });
 
-document.addEventListener(
-  "touchstart",
-  (e) => {
+  document.addEventListener("touchstart", (e) => {
     if (e.touches && e.touches.length > 1) e.preventDefault();
-  },
-  { passive: false }
-);
+  }, { passive: false });
 
-// iOS Safari gesture events
-["gesturestart", "gesturechange", "gestureend"].forEach((evt) => {
-  document.addEventListener(evt, (e) => e.preventDefault(), { passive: false });
-});
+  ["gesturestart", "gesturechange", "gestureend"].forEach((evt) => {
+    document.addEventListener(evt, (e) => e.preventDefault(), { passive: false });
+  });
 
-// Double-tap zoom guard
-let lastTouchEnd = 0;
-document.addEventListener(
-  "touchend",
-  (e) => {
+  let lastTouchEnd = 0;
+  document.addEventListener("touchend", (e) => {
     const now = Date.now();
     if (now - lastTouchEnd <= 300) e.preventDefault();
     lastTouchEnd = now;
-  },
-  { passive: false }
-);
+  }, { passive: false });
 
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
@@ -324,7 +319,7 @@ document.addEventListener(
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
 
-  // ===== Assets =====
+  // Assets
   const IMG = {};
   function loadImg(key, src){
     return new Promise((res) => {
@@ -347,7 +342,7 @@ document.addEventListener(
     loadImg("skillH", "assets/horizontal_slash_skill.png"),
   ];
 
-  // ===== Config =====
+  // Config
   const STRIKE_ZONE_VISIBLE = true;
   const PLATE_Y_FRAC = 0.90;
 
@@ -362,19 +357,22 @@ document.addEventListener(
   const AIM_PAD = 10;
   const CHASE_MARGIN = 22;
 
-  // Smaller starter aimer
   const BAT_R_BASE = 22;
   const BAT_R_PER_UPG = 0.55;
 
+  const PERFECT_W = 0.055;
+  const GOOD_W    = 0.14;
   const LATE_GRACE = 0.06;
 
-  // Overlap grading is now relative to BAT circle area (so smaller aim is still viable)
-  const OVERLAP_PERFECT = 0.92; // % of bat circle covered by ball
+  // overlap relative to BAT area
+  const OVERLAP_PERFECT = 0.92;
   const OVERLAP_GOOD    = 0.75;
 
   const POPUP_LIFE = 0.62;
   const POPUP_RISE = -130;
   const POPUP_STACK_STEP = 42;
+
+  const PLATE_HOLD_EPS = 0.1;
 
   function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
   function clamp01(v){ return Math.max(0, Math.min(1, v)); }
@@ -431,7 +429,7 @@ document.addEventListener(
     return side * step * POPUP_STACK_STEP;
   }
 
-  // ===== Player =====
+  // Player
   const player = {
     x: 0, y: 0,
     w: 120, h: 180,
@@ -447,6 +445,8 @@ document.addEventListener(
     swingCD: 0,
     swingCDDur: 0.10,
 
+    swingConsumed: false,
+
     skillVCD: 0,
     skillHCD: 0,
     skillVCDDur: 6.0,
@@ -461,23 +461,32 @@ document.addEventListener(
     setStance(player.stance === "righty" ? "lefty" : "righty");
   }
 
-  // ===== Input =====
+  // Input
   const input = { swing:false, skillV:false, skillH:false };
 
   function bindTap(el, fn){
     el.addEventListener("pointerdown", (e)=>{ e.preventDefault(); fn(); });
   }
 
-  bindTap(document.getElementById("btnSwing"), ()=> input.swing = true);
+  // Swing must be press-per-swing: trigger on pointerup to avoid “hold”
+  function bindPressOnce(el, fn){
+    el.addEventListener("pointerdown", (e)=>{ e.preventDefault(); });
+    el.addEventListener("pointerup", (e)=>{ e.preventDefault(); fn(); });
+    el.addEventListener("pointercancel", (e)=>{ e.preventDefault(); });
+  }
+
+  bindPressOnce(document.getElementById("btnSwing"), ()=> input.swing = true);
   bindTap(document.getElementById("btnVert"),  ()=> input.skillV = true);
   bindTap(document.getElementById("btnHorz"),  ()=> input.skillH = true);
 
   bindTap(document.getElementById("btnToggle"), toggleStance);
   bindTap(document.getElementById("btnRighty"), ()=> setStance("righty"));
   bindTap(document.getElementById("btnLefty"),  ()=> setStance("lefty"));
-bindTap(document.getElementById("btnRestart"), () => resetRun());
 
-  // ===== Aim spot =====
+  const restartBtn = document.getElementById("btnRestart");
+  bindTap(restartBtn, () => resetRun());
+
+  // Aim spot
   const aim = { nx: 0, ny: 0 };
   let lastZone = { x:0, y:0, w:100, h:100 };
 
@@ -511,7 +520,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     };
   }
 
-  // ===== Joystick =====
+  // Joystick
   const joyEl = document.getElementById("joy");
   const knobEl = document.getElementById("joyKnob");
   let joyActive = false;
@@ -526,7 +535,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     const cx = r.left + r.width/2;
     const cy = r.top + r.height/2;
 
-    const maxR = (Math.min(r.width, r.height) * 0.5) - 20;
+    const maxR = (Math.min(r.width, r.height) * 0.5) - 18;
     let dx = clientX - cx;
     let dy = clientY - cy;
 
@@ -566,7 +575,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
   joyEl.addEventListener("pointercancel", endJoy);
   joyEl.addEventListener("lostpointercapture", () => { joyActive = false; joyPid = -1; });
 
-  // ===== PC mouse aiming + click swing =====
+  // PC mouse aim + click swing
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
   canvas.addEventListener("pointermove", (e) => {
@@ -574,10 +583,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     if (upgradeOpen) return;
 
     const rect = canvas.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
-
-    clampAimToExpandedZone(lastZone, px, py);
+    clampAimToExpandedZone(lastZone, e.clientX - rect.left, e.clientY - rect.top);
   });
 
   canvas.addEventListener("pointerdown", (e) => {
@@ -586,7 +592,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     if (e.button === 0) input.swing = true;
   });
 
-  // ===== Game state =====
+  // Game state
   const topbar = document.getElementById("topbar");
 
   let score = 0;
@@ -612,7 +618,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
   const upgrades = {
     hitboxBonus: 0,
     cdMul: 1.0,
-    perfectBonus: 0.00, // overlap leniency
+    perfectBonus: 0.00,
     skillDamageBonus: 0,
 
     autoPitchCount: 0,
@@ -621,7 +627,29 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
   };
 
   const shots = [];
+  const balls = [];
+  const bossPitches = [];
+  const returns = [];
+  const explosions = [];
+  const pickups = [];
+  const popups = [];
 
+  let spawnT = 0;
+  let swingToken = 0;
+  let popupStackI = 0;
+
+  // Boss
+  const boss = {
+    alive: false,
+    x: 0, y: 0,
+    r: 86,
+    hp: 0,
+    maxHp: 0,
+    shootT: 0,
+    shootInterval: 0.95,
+  };
+
+  // Levels
   let level = 1;
   let levelKills = 0;
   let levelTime = 0;
@@ -647,7 +675,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
 
     if (spec.type === "kills") spec.banner = `LEVEL ${lv} — Protect the Plate: ${spec.target} KOs`;
     if (spec.type === "survive") spec.banner = `LEVEL ${lv} — Hold the Line: ${spec.target}s`;
-    if (spec.type === "boss") spec.banner = `LEVEL ${lv} — MINI BOSS INBOUND`;
+    if (spec.type === "boss") spec.banner = `LEVEL ${lv} — BOSS: HIT IT BACK`;
     return spec;
   }
 
@@ -659,7 +687,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     return clamp01((level - 1) / 18);
   }
 
-  // ===== Upgrade Modal UI =====
+  // Upgrade modal (unchanged logic)
   const upgradeModal = document.getElementById("upgradeModal");
   const upgradeChoicesEl = document.getElementById("upgradeChoices");
   const upgradeTitle = document.getElementById("upgradeTitle");
@@ -675,7 +703,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     cooldown:    { name:"Quick Hands", desc:"Skill cooldowns -10%.", apply(){ upgrades.cdMul *= 0.90; } },
     hp:          { name:"Extra Heart", desc:"+1 HP (cap 6).", apply(){ hp = Math.min(6, hp + 1); } },
     shield:      { name:"Shield Charge", desc:"+1 shield (cap 3).", apply(){ buffs.shield = Math.min(3, buffs.shield + 1); } },
-    perfect:     { name:"Timing Master", desc:"Perfect overlap leniency +2%.", apply(){ upgrades.perfectBonus += 0.02; } },
+    perfect:     { name:"Timing Master", desc:"Perfect window +0.02s.", apply(){ upgrades.perfectBonus += 0.02; } },
     skill_dmg:   { name:"Sharper Skills", desc:"VERT/HORZ damage +1.", apply(){ upgrades.skillDamageBonus += 1; } },
     autopitch_3: { name:"Auto Pitch+", desc:"Auto Pitch now fires 3 balls.", apply(){ upgrades.autoPitchCount = Math.max(upgrades.autoPitchCount, 3); } },
     autopitch_faster:{ name:"Rapid Pitch", desc:"Auto Pitch interval -1s (min 2s).", apply(){ upgrades.autoPitchInterval = Math.max(2.0, upgrades.autoPitchInterval - 1.0); } },
@@ -748,28 +776,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     chooseUpgradeByIndex(Number(card.dataset.idx));
   });
 
-  // ===== Entities =====
-  const balls = [];
-  const explosions = [];
-  const pickups = [];
-  const popups = [];
-  let spawnT = 0;
-
-  let swingToken = 0;
-  let popupStackI = 0;
-
-  function startSwing(){
-    if (player.swingCD > 0) return;
-    swingToken++;
-    popupStackI = 0;
-
-    player.swing = true;
-    player.swingTimer = player.swingWindow;
-    player.swingAge = 0;
-    player.swingPoseTimer = player.swingPoseDur;
-    player.swingCD = player.swingCDDur;
-  }
-
+  // FX
   function spawnExplosion(x, y, big=false){
     explosions.push({ x, y, frame:0, t:0, fps:24, frameCount:5, size: big ? 120 : 96, alive:true });
   }
@@ -803,13 +810,46 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     shakeT = Math.max(shakeT, 0.12);
   }
 
-  // ===== Auto Pitch (same as before) =====
+  function endSwingImmediately(){
+    player.swing = false;
+    player.swingTimer = 0;
+    player.swingAge = 999;
+  }
+
+  // Swing
+  function startSwing(){
+    if (player.swingCD > 0) return;
+    swingToken++;
+    popupStackI = 0;
+
+    player.swingConsumed = false;
+
+    player.swing = true;
+    player.swingTimer = player.swingWindow;
+    player.swingAge = 0;
+    player.swingPoseTimer = player.swingPoseDur;
+    player.swingCD = player.swingCDDur;
+  }
+
+  function applyPlateDamage(amount){
+    if (buffs.shield > 0) buffs.shield--;
+    else hp = Math.max(0, hp - amount);
+
+    combo = 0;
+    comboTimer = 0;
+
+    shakeMag = Math.max(shakeMag, 10);
+    shakeT = Math.max(shakeT, 0.20);
+  }
+
+  // Auto Pitch (friendly) — in boss fight: only homes to BOSS
   const SHOT_HOMING = true;
-  const SHOT_HOMING_RANGE = 900;
+  const SHOT_HOMING_RANGE = 1200;
   const SHOT_TURN_RATE = 14;
   const SHOT_LEAD_TIME = 0.20;
 
   function acquireShotTarget(s){
+    if (boss.alive) return boss;
     let best = null;
     let bestScore = -Infinity;
     for (const b of balls){
@@ -849,18 +889,30 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     }
   }
 
+  function bossDamage(dmg, isPerfect=false){
+    boss.hp = Math.max(0, boss.hp - dmg);
+
+    hitStop = isPerfect ? 0.09 : 0.06;
+    shakeMag = Math.max(shakeMag, isPerfect ? 16 : 12);
+    shakeT = Math.max(shakeT, 0.22);
+
+    spawnExplosion(boss.x, boss.y + boss.r * 0.1, isPerfect);
+
+    if (boss.hp <= 0){
+      boss.alive = false;
+      levelKills = 1;
+      finishLevel();
+    }
+  }
+
   function updateShots(dt, W, H){
     for (const s of shots){
       if (!s.alive) continue;
 
       if (SHOT_HOMING && s.homing){
-        if (!s.target || !s.target.alive) s.target = acquireShotTarget(s);
-        else {
-          const d = Math.hypot(s.target.x - s.x, s.target.y - s.y);
-          if (d > SHOT_HOMING_RANGE) s.target = acquireShotTarget(s);
-        }
+        if (!s.target || (s.target !== boss && !s.target.alive)) s.target = acquireShotTarget(s);
 
-        if (s.target && s.target.alive){
+        if (s.target){
           const tx = s.target.x + (s.target.vx || 0) * SHOT_LEAD_TIME;
           const ty = s.target.y + (s.target.vy || 0) * SHOT_LEAD_TIME;
 
@@ -882,13 +934,30 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
 
       if (s.x > W + 120 || s.x < -120 || s.y > H + 120 || s.y < -120) s.alive = false;
 
+      // Boss collision: shots can damage boss directly in boss rounds
+      if (boss.alive){
+        const d = Math.hypot(s.x - boss.x, s.y - boss.y);
+        if (d <= boss.r * 0.72 + s.r){
+          s.alive = false;
+          bossDamage(s.dmg, false);
+          continue;
+        }
+        continue;
+      }
+
+      // Normal collision: shots hit enemies
       for (const b of balls){
         if (!b.alive) continue;
         const dx = b.x - s.x, dy = b.y - s.y;
         const rr = (b.r + s.r);
         if ((dx*dx + dy*dy) <= rr*rr){
           s.alive = false;
-          dealDamageToBall(b, s.dmg, W, H, { fromSkill:true });
+          b.hp -= s.dmg;
+          hitStop = 0.06;
+          shakeMag = Math.max(shakeMag, 10);
+          shakeT = Math.max(shakeT, 0.18);
+          spawnExplosion(b.x, b.y, false);
+          if (b.hp <= 0) b.alive = false;
           break;
         }
       }
@@ -899,8 +968,41 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     }
   }
 
-  // ===== Damage =====
-  function dealDamageToBall(b, dmg, W, H, {isPerfect=false, fromSkill=false} = {}){
+function spawnEnemy(W, H, kind="normal"){
+  const speedScale = 1 + (level-1) * 0.06;
+
+  // All basic enemies are 1 HP (one hit kills)
+  let r = 42, hpv = 1, scoreV = 10, spd = (280 + Math.random()*120) * speedScale;
+
+  if (kind === "fast"){ r=30; hpv=1; scoreV=18; spd=(380 + Math.random()*140) * speedScale; }
+
+  // keep "heavy" as a different FEEL (bigger, maybe more score), but still 1 HP
+  if (kind === "heavy"){ r=52; hpv=1; scoreV=25; spd=(240 + Math.random()*100) * speedScale; }
+
+  const lane = (Math.random() * 3) | 0;
+  let x, y;
+  if (lane === 0){ x = Math.random()*W; y = -80; }
+  else if (lane === 1){ x = -80; y = Math.random()*(H*0.62); }
+  else { x = W + 80; y = Math.random()*(H*0.62); }
+
+  balls.push({
+    kind, x, y, r,
+    alive:true,
+    hp: hpv,
+    scoreV,
+    speed: spd,
+    vx:0, vy:0,
+    wobPhase: Math.random()*Math.PI*2,
+    wobMag: 10,
+    toPlateDist: 9999,
+    lastHitSwingToken: -1,
+    pendingPlate: false,
+    justHitT: 0,
+  });
+}
+
+
+  function dealDamageToEnemyBall(b, dmg, {isPerfect=false, fromSkill=false} = {}){
     if (!b.alive) return false;
 
     b.hp -= dmg;
@@ -933,202 +1035,265 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     maybeDropPickup(b.x, b.y);
 
     const spec = getLevelSpec(level);
-    if (!upgradeOpen){
-      if (spec.type === "kills" && levelKills >= spec.target) finishLevel();
-      if (spec.type === "boss" && levelKills >= spec.target) finishLevel();
-    }
+    if (!upgradeOpen && spec.type === "kills" && levelKills >= spec.target) finishLevel();
     return true;
   }
 
-  function plateHitByEnemy(b){
-    b.alive = false;
+  // Boss pitch types
+  const BOSS_PITCH_TYPES = [
+    { id:"FASTBALL", speedMul:1.18, curve:0.0,  sink:0.00, lateBreak:0.00 },
+    { id:"CURVE",    speedMul:0.96, curve:1.0,  sink:0.14, lateBreak:0.25 },
+    { id:"SLIDER",   speedMul:1.05, curve:0.7,  sink:0.06, lateBreak:0.55 },
+    { id:"SINKER",   speedMul:1.02, curve:0.25, sink:0.34, lateBreak:0.62 },
+    { id:"CHANGE",   speedMul:0.84, curve:0.35, sink:0.10, lateBreak:0.40 },
+  ];
 
-    if (buffs.shield > 0) buffs.shield--;
-    else hp = Math.max(0, hp - (b.kind === "boss" ? 2 : 1));
-
-    combo = 0;
-    comboTimer = 0;
-
-    shakeMag = Math.max(shakeMag, 10);
-    shakeT = Math.max(shakeT, 0.20);
-  }
-
-  // ===== Pitch spawn/move (unchanged) =====
-  function ballChance(){
+  function pickBossPitchType(){
     const t = difficultyT();
-    return lerp(0.10, 0.45, t);
-  }
-
-  function pickPitchProfile(kind){
-    if (kind === "boss"){
-      const pool = ["straight","slider","sinker","cutter","splitter","changeup"];
-      return pool[(Math.random() * pool.length) | 0];
-    }
-
-    const t = difficultyT();
-    const early = ["straight","straight","curve","sinker"];
-    const mid   = ["straight","curve","slider","sinker","changeup","cutter"];
-    const late  = ["curve","slider","sinker","changeup","cutter","splitter","knuckle"];
-
+    const early = [0,0,0,1,4];
+    const mid   = [0,1,2,3,4];
+    const late  = [0,1,2,2,3,3,4];
     const pool = (t < 0.33) ? early : (t < 0.70) ? mid : late;
-    return pool[(Math.random() * pool.length) | 0];
+    return BOSS_PITCH_TYPES[pool[(Math.random()*pool.length)|0]];
   }
 
-  function spawnEnemy(W, H, kind, plate, zone, band){
+  function startBossFight(W, H){
     const t = difficultyT();
-    const speedScale = 1 + (level - 1) * 0.06;
+    boss.alive = true;
+    boss.maxHp = Math.round(14 + level * 1.4);
+    boss.hp = boss.maxHp;
 
-    let r = 42, hpv = 1, scoreV = 10, spd = (280 + Math.random()*120) * speedScale;
-    if (kind === "fast"){ r=30; hpv=1; scoreV=18; spd=(395 + Math.random()*160) * speedScale; }
-    if (kind === "heavy"){ r=52; hpv=2; scoreV=25; spd=(240 + Math.random()*110) * speedScale; }
-    if (kind === "boss"){ r=72; hpv=6; scoreV=120; spd=(215 + Math.random()*90) * (1 + (level-1)*0.03); }
+    boss.x = W * 0.5;
+    boss.y = Math.max(88, H * lerp(0.16, 0.20, t));
+    boss.r = 86;
 
-    const lane = (Math.random() * 3) | 0;
-    let x, y;
-    const edgeTopMax = H * lerp(0.52, 0.70, t);
-    if (lane === 0){ x = Math.random() * W; y = -80; }
-    else if (lane === 1){ x = -80; y = Math.random() * edgeTopMax; }
-    else { x = W + 80; y = Math.random() * edgeTopMax; }
+    boss.shootT = 0;
+    boss.shootInterval = lerp(1.05, 0.62, t);
+  }
 
-    const isBallPitch = (kind !== "boss") && (Math.random() < ballChance());
-    const profile = pickPitchProfile(kind);
+  function spawnBossPitch(W, H, zone, band){
+    const plate = getPlate(W, H);
+    const t = difficultyT();
 
-    const fy = band.y + band.h/2;
-    const cx = band.x + band.w/2;
+    const pt = pickBossPitchType();
+    const r = 32 + Math.random() * 7;
 
-    const fx = isBallPitch
-      ? (cx + (Math.random() < 0.5 ? -1 : 1) * (band.w/2 + 80 + Math.random()*140))
-      : (band.x + 12 + Math.random() * (band.w - 24));
+    const baseSpeed = lerp(360, 560, t);
+    const spd = baseSpeed * pt.speedMul + Math.random() * 35;
 
-    const guideY = isBallPitch
-      ? fy
-      : (zone.y + zone.h * lerp(0.30, 0.72, t) + (Math.random()*2 - 1) * 8);
+    const ballChance = lerp(0.18, 0.30, t);
+    const isBallPitch = Math.random() < ballChance;
 
-    const gx = isBallPitch ? fx : (zone.x + 12 + Math.random() * (zone.w - 24));
-    const gRadius = isBallPitch ? 0 : lerp(140, 75, t);
+    const targetY = band.y + band.h/2;
+
+    const strikeX = zone.x + 14 + Math.random() * (zone.w - 28);
+    const ballX = plate.x + (Math.random() < 0.5 ? -1 : 1) * (zone.w * 0.65 + 50 + Math.random() * 120);
+    const targetX = isBallPitch ? ballX : strikeX;
+
+    const dir = norm2(targetX - boss.x, targetY - boss.y);
     const breakSign = (Math.random() < 0.5) ? -1 : 1;
 
-    const totalDist = Math.hypot(fx - x, fy - y) || 1;
-    const travelDur = clamp(totalDist / spd, 0.55, 1.8);
-
-    balls.push({
-      kind, x, y, r,
-      alive:true,
-      hp: hpv,
-      scoreV,
+    bossPitches.push({
+      x: boss.x,
+      y: boss.y + boss.r * 0.25,
+      r,
+      alive: true,
+      hp: 1,
       speed: spd,
-      vx:0, vy:0,
+      vx: dir.x * spd,
+      vy: dir.y * spd,
 
-      pitch: isBallPitch ? "ball" : "strike",
-      profile,
-      phase: isBallPitch ? 1 : 0,
-      gx, gy: guideY,
-      fx, fy,
-      gRadius,
-      breakSign,
+      pitchId: pt.id,
+      curveK: pt.curve * breakSign,
+      sinkK: pt.sink,
+      lateBreak: pt.lateBreak,
 
-      knuckleSeed: Math.random() * 1000,
-
-      travelT: 0,
-      travelDur,
-
+      phase: Math.random() * Math.PI * 2,
+      isBallPitch,
       toPlateDist: 9999,
       lastHitSwingToken: -1,
+      pendingPlate: false,
+      labelT: 0.75,
     });
   }
 
-  function applyPitchForces(b, baseDir, prog){
-    const t = difficultyT();
-    const breakBase = lerp(0.05, 1.0, t);
+  function applyBossPitchMovement(p, dt){
+    const prog = clamp01(1 - (p.toPlateDist / 520));
+    const late = clamp01((prog - p.lateBreak) / Math.max(0.0001, (1 - p.lateBreak)));
 
-    let speedMul = 1.0;
-    if (b.profile === "changeup"){
-      const fade = clamp01((prog - 0.25) / 0.55);
-      speedMul = lerp(1.12, 0.72, fade);
-    }
-    if (b.profile === "splitter"){
-      const late = clamp01((prog - 0.50) / 0.50);
-      speedMul *= lerp(1.00, 0.80, late);
-    }
-    if (b.profile === "knuckle"){
-      speedMul *= lerp(0.92, 0.86, t);
-    }
+    p.phase += dt * 7.0;
+    const wob = Math.sin(p.phase);
 
-    let vx = baseDir.x * b.speed * speedMul;
-    let vy = baseDir.y * b.speed * speedMul;
+    const vdir = norm2(p.vx, p.vy);
+    const perp = { x: -vdir.y, y: vdir.x };
 
-    if (b.profile === "curve"){
-      const amt = b.speed * 0.22 * breakBase;
-      const curve = Math.sin(prog * Math.PI) * b.breakSign;
-      vx += (-baseDir.y) * amt * curve;
-      vy += ( baseDir.x) * amt * curve;
-    } else if (b.profile === "slider"){
-      const late = clamp01((prog - 0.55) / 0.45);
-      const amt = b.speed * 0.30 * breakBase * late * b.breakSign;
-      vx += (-baseDir.y) * amt;
-      vy += ( baseDir.x) * amt;
-    } else if (b.profile === "cutter"){
-      const late = clamp01((prog - 0.48) / 0.52);
-      const amt = b.speed * 0.16 * breakBase * late * b.breakSign;
-      vx += (-baseDir.y) * amt;
-      vy += ( baseDir.x) * amt;
-    } else if (b.profile === "sinker"){
-      const late = clamp01((prog - 0.55) / 0.45);
-      vy += (b.speed * 0.38 * breakBase) * late;
-    } else if (b.profile === "splitter"){
-      const late = clamp01((prog - 0.50) / 0.50);
-      vy += (b.speed * 0.60 * breakBase) * late;
-    } else if (b.profile === "knuckle"){
-      const wob = lerp(22, 58, t);
-      const s = b.knuckleSeed;
-      const n1 = Math.sin((prog * 9.0) + s) + Math.sin((prog * 14.5) + s * 1.7);
-      const n2 = Math.cos((prog * 11.2) + s * 0.9) + Math.sin((prog * 17.1) + s * 2.3);
-      vx += n1 * wob;
-      vy += n2 * wob * 0.65;
-    } else {
-      const j = lerp(0, 20, t);
-      vx += (Math.random()*2 - 1) * j;
-      vy += (Math.random()*2 - 1) * j;
-    }
+    const curveMag = (18 + 32 * late) * p.curveK * (0.65 + 0.35 * wob);
+    p.vx += perp.x * curveMag * dt;
+    p.vy += perp.y * curveMag * dt;
 
-    return { vx, vy };
+    const sinkMag = (65 * late) * p.sinkK;
+    p.vy += sinkMag * dt;
+
+    const nd = norm2(p.vx, p.vy);
+    p.vx = nd.x * p.speed;
+    p.vy = nd.y * p.speed;
   }
 
-  // ===== Keyboard =====
-  window.addEventListener("keydown", (e) => {
-    const k = e.key.toLowerCase();
+  function createReturnBall(fromX, fromY, grade, aimPt, zone, timing01){
+    const timing = clamp((0.5 - timing01) * 2, -1, 1); // early:+1, late:-1
 
-    if (k === "r"){ resetRun(); return; }
+    const zoneCx = zone.x + zone.w/2;
+    const zoneCy = zone.y + zone.h/2;
 
-    if (upgradeOpen){
-      if (k === "1") chooseUpgradeByIndex(0);
-      if (k === "2") chooseUpgradeByIndex(1);
-      if (k === "3") chooseUpgradeByIndex(2);
-      return;
+    const ax = (aimPt.x - zoneCx) / Math.max(1, zone.w/2);
+    const ay = (aimPt.y - zoneCy) / Math.max(1, zone.h/2);
+
+    const pullX = player.facing * timing * 180;
+    const aimX = clamp(ax, -1, 1) * 150;
+    const aimY = clamp(ay, -1, 1) * 70;
+
+    const targetX = boss.x + pullX + aimX;
+    const targetY = boss.y + aimY;
+
+    const dir = norm2(targetX - fromX, targetY - fromY);
+
+    const isPerfect = grade === "perfect";
+    const dmg = isPerfect ? 2 : 1;
+
+    const speed =
+      isPerfect ? 980 :
+      (grade === "good" ? 920 : 860);
+
+    returns.push({
+      x: fromX,
+      y: fromY,
+      r: 14,
+      vx: dir.x * speed,
+      vy: dir.y * speed,
+      alive: true,
+      dmg,
+      isPerfect,
+    });
+  }
+
+  function updateBossFight(dt, W, H, zone, band, swingActive, expandedZone){
+    if (!boss.alive) return;
+
+    const tx = band.x + band.w/2;
+    const ty = band.y + band.h/2;
+
+    boss.shootT += dt;
+    if (boss.shootT >= boss.shootInterval){
+      boss.shootT = 0;
+      spawnBossPitch(W, H, zone, band);
+
+      const t = difficultyT();
+      if (t > 0.55 && Math.random() < 0.22){
+        spawnBossPitch(W, H, zone, band);
+      }
     }
 
-    if (k === "t") toggleStance();
-    if (k === "a") setStance("righty");
-    if (k === "d") setStance("lefty");
+    for (const p of bossPitches){
+      if (!p.alive) continue;
 
-    if (k === "j") input.swing = true;
-    if (k === "k") input.skillV = true;
-    if (k === "l") input.skillH = true;
+      p.labelT = Math.max(0, p.labelT - dt);
 
-    const step = 0.11;
-    if (e.key === "ArrowLeft")  aim.nx = clamp(aim.nx - step, -1, 1);
-    if (e.key === "ArrowRight") aim.nx = clamp(aim.nx + step, -1, 1);
-    if (e.key === "ArrowUp")    aim.ny = clamp(aim.ny - step, -1, 1);
-    if (e.key === "ArrowDown")  aim.ny = clamp(aim.ny + step, -1, 1);
+      applyBossPitchMovement(p, dt);
 
-    if (e.key.startsWith("Arrow")){
-      const r = joyEl.getBoundingClientRect();
-      const maxR = (Math.min(r.width, r.height) * 0.5) - 20;
-      setKnob(aim.nx * maxR, aim.ny * maxR);
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      p.toPlateDist = Math.hypot(tx - p.x, ty - p.y);
+
+      if (p.pendingPlate) continue;
+
+      if (p.y + p.r >= band.bot){
+        const hittableNow = swingActive && !player.swingConsumed &&
+          circleRectHit(p.x, p.y, p.r, expandedZone.x, expandedZone.y, expandedZone.w, expandedZone.h);
+
+        if (hittableNow){
+          p.pendingPlate = true;
+          p.y = band.bot - p.r - PLATE_HOLD_EPS;
+          continue;
+        }
+
+        p.alive = false;
+        const hitsPlateLane = circleRectHit(p.x, p.y, p.r, band.x, band.y, band.w, band.h);
+        if (hitsPlateLane) applyPlateDamage(1);
+      }
     }
-  });
 
-  // ===== Run control =====
+    for (const r of returns){
+      if (!r.alive) continue;
+
+      r.x += r.vx * dt;
+      r.y += r.vy * dt;
+
+      if (r.x < -200 || r.x > W + 200 || r.y < -200 || r.y > H + 200){
+        r.alive = false;
+        continue;
+      }
+
+      const d = Math.hypot(r.x - boss.x, r.y - boss.y);
+      if (d <= (boss.r * 0.72 + r.r)){
+        r.alive = false;
+        bossDamage(r.dmg, r.isPerfect);
+      }
+    }
+
+    for (let i = bossPitches.length - 1; i >= 0; i--) if (!bossPitches[i].alive) bossPitches.splice(i, 1);
+    for (let i = returns.length - 1; i >= 0; i--) if (!returns[i].alive) returns.splice(i, 1);
+  }
+
+  // Skills
+  function useSkillV(zone){
+    if (player.skillVCD > 0) return;
+    player.skillVCD = player.skillVCDDur * upgrades.cdMul;
+    fxVertT = 0.22;
+
+    const stripeW = 140;
+    const stripeX = (zone.x + zone.w/2) - stripeW/2;
+    const dmg = 2 + upgrades.skillDamageBonus;
+
+    const pool = boss.alive ? bossPitches : balls;
+    for (const b of pool){
+      if (!b.alive) continue;
+      if (b.x >= stripeX && b.x <= stripeX + stripeW){
+        if (boss.alive){
+          b.alive = false;
+          spawnExplosion(b.x, b.y, true);
+        } else {
+          dealDamageToEnemyBall(b, dmg, { fromSkill:true });
+        }
+      }
+    }
+  }
+
+  function useSkillH(zone){
+    if (player.skillHCD > 0) return;
+    player.skillHCD = player.skillHCDDur * upgrades.cdMul;
+    fxHorzT = 0.22;
+
+    const bandH = 110;
+    const centerY = (zone.y + zone.h/2);
+    const bandY = centerY - bandH/2;
+    const dmg = 2 + upgrades.skillDamageBonus;
+
+    const pool = boss.alive ? bossPitches : balls;
+    for (const b of pool){
+      if (!b.alive) continue;
+      if (b.y >= bandY && b.y <= bandY + bandH){
+        if (boss.alive){
+          b.alive = false;
+          spawnExplosion(b.x, b.y, true);
+        } else {
+          dealDamageToEnemyBall(b, dmg, { fromSkill:true });
+        }
+      }
+    }
+  }
+
+  // Run control
   function resetRun(){
     score = 0;
     hp = 3;
@@ -1161,6 +1326,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     player.swingAge = 999;
     player.swingPoseTimer = 0;
     player.swingCD = 0;
+    player.swingConsumed = false;
 
     player.skillVCD = 0;
     player.skillHCD = 0;
@@ -1168,6 +1334,8 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     fxHorzT = 0;
 
     balls.length = 0;
+    bossPitches.length = 0;
+    returns.length = 0;
     explosions.length = 0;
     pickups.length = 0;
     shots.length = 0;
@@ -1178,6 +1346,10 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     hitStop = 0;
     shakeT = 0;
     shakeMag = 0;
+
+    boss.alive = false;
+    boss.hp = 0;
+    boss.maxHp = 0;
 
     upgradeOpen = false;
     pendingNextLevel = null;
@@ -1199,16 +1371,82 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     spawnT = 0;
 
     balls.length = 0;
+    bossPitches.length = 0;
+    returns.length = 0;
     explosions.length = 0;
     pickups.length = 0;
     popups.length = 0;
+
+    boss.alive = false;
+    boss.hp = 0;
+    boss.maxHp = 0;
   }
 
   function finishLevel(){
     openUpgradeModal(level + 1);
   }
 
-  // ===== Main step =====
+// ===== Keyboard (no-hold / no-repeat) =====
+const heldKeys = new Set();
+
+function keyName(e){
+  return (e.key || "").toLowerCase();
+}
+
+window.addEventListener("keydown", (e) => {
+  const k = keyName(e);
+
+  // prevent OS/browser key-repeat from spamming swing
+  if (e.repeat) return;
+  if (heldKeys.has(k)) return;
+  heldKeys.add(k);
+
+  // always allow restart
+  if (k === "r"){ resetRun(); return; }
+
+  // modal choices
+  if (upgradeOpen){
+    if (k === "1") chooseUpgradeByIndex(0);
+    if (k === "2") chooseUpgradeByIndex(1);
+    if (k === "3") chooseUpgradeByIndex(2);
+    return;
+  }
+
+  if (k === "t") toggleStance();
+  if (k === "a") setStance("righty");
+  if (k === "d") setStance("lefty");
+
+  // one-shot press actions
+  if (k === "j") input.swing = true;   // swing cannot be held
+  if (k === "k") input.skillV = true;
+  if (k === "l") input.skillH = true;
+
+  // arrow aim (also one-shot-per-press; hold won't repeat)
+  const step = 0.11;
+  if (e.key === "ArrowLeft")  aim.nx = clamp(aim.nx - step, -1, 1);
+  if (e.key === "ArrowRight") aim.nx = clamp(aim.nx + step, -1, 1);
+  if (e.key === "ArrowUp")    aim.ny = clamp(aim.ny - step, -1, 1);
+  if (e.key === "ArrowDown")  aim.ny = clamp(aim.ny + step, -1, 1);
+
+  if (e.key.startsWith("Arrow")){
+    const r = joyEl.getBoundingClientRect();
+    const maxR = (Math.min(r.width, r.height) * 0.5) - 18;
+    setKnob(aim.nx * maxR, aim.ny * maxR);
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  heldKeys.delete(keyName(e));
+});
+
+// safety: never get "stuck held" if tab loses focus
+window.addEventListener("blur", () => heldKeys.clear());
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) heldKeys.clear();
+});
+
+
+  // Step
   function step(dt, W, H){
     if (upgradeOpen) return;
 
@@ -1239,14 +1477,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     if (fxVertT > 0) fxVertT = Math.max(0, fxVertT - sdt);
     if (fxHorzT > 0) fxHorzT = Math.max(0, fxHorzT - sdt);
 
-    if (upgrades.autoPitchCount > 0){
-      upgrades.autoPitchT += sdt;
-      if (upgrades.autoPitchT >= upgrades.autoPitchInterval){
-        upgrades.autoPitchT = 0;
-        fireAutoPitch(W, H);
-      }
-    }
-
+    // popups
     for (const p of popups){
       if (!p.alive) continue;
       p.t += sdt;
@@ -1257,6 +1488,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       if (!popups[i].alive) popups.splice(i, 1);
     }
 
+    // anchor player/zone
     const plate = getPlate(W, H);
     const band  = getContactBandFromPlate(W, H);
 
@@ -1267,9 +1499,9 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
 
     const zone = getStrikeZoneFromPlayer(W, H, player.y, player.h);
     lastZone = zone;
-
     const aimPt = getAimPoint(zone);
 
+    // swing input + timers
     if (input.swing) startSwing();
     input.swing = false;
 
@@ -1283,78 +1515,122 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       player.swingPoseTimer = Math.max(0, player.swingPoseTimer - sdt);
     }
 
-    spawnT += sdt;
-    const baseInterval = 1.05;
-    const interval = Math.max(0.42, baseInterval - (level-1) * 0.05);
+    const swingActive = (player.swing || player.swingAge <= player.swingWindow + LATE_GRACE);
 
-    const allowSpawns = (spec.type !== "boss") || (level >= 10);
-    if (allowSpawns && spawnT >= interval){
-      spawnT = 0;
+    const expandedZone = {
+      x: zone.x - CHASE_MARGIN,
+      y: zone.y - CHASE_MARGIN,
+      w: zone.w + CHASE_MARGIN*2,
+      h: zone.h + CHASE_MARGIN*2,
+    };
 
-      const r = Math.random();
-      let kind = "normal";
+    // skills
+    if (input.skillV) useSkillV(zone);
+    input.skillV = false;
 
-      const fastChance = Math.min(0.32, 0.08 + (level-1)*0.02);
-      const heavyChance = Math.min(0.26, 0.06 + (level-1)*0.015);
+    if (input.skillH) useSkillH(zone);
+    input.skillH = false;
 
-      if (r < fastChance) kind = "fast";
-      else if (r < fastChance + heavyChance) kind = "heavy";
-
-      spawnEnemy(W, H, kind, plate, zone, band);
-
-      if (level >= 7 && Math.random() < 0.10){
-        spawnEnemy(W, H, Math.random() < 0.5 ? "fast" : "normal", plate, zone, band);
+    // auto pitch
+    if (upgrades.autoPitchCount > 0){
+      upgrades.autoPitchT += sdt;
+      if (upgrades.autoPitchT >= upgrades.autoPitchInterval){
+        upgrades.autoPitchT = 0;
+        fireAutoPitch(W, H);
       }
     }
 
-    if (spec.type === "boss" && balls.length === 0){
-      spawnEnemy(W, H, "boss", plate, zone, band);
+    // boss start
+    if (spec.type === "boss" && !boss.alive){
+      startBossFight(W, H);
     }
 
-    const tx = band.x + band.w/2;
-    const ty = band.y + band.h/2;
+    // spawn normal enemies
+    if (spec.type !== "boss"){
+      spawnT += sdt;
+      const baseInterval = 1.05;
+      const interval = Math.max(0.42, baseInterval - (level-1) * 0.05);
 
-    for (const b of balls){
-      if (!b.alive) continue;
+      if (spawnT >= interval){
+        spawnT = 0;
 
-      b.travelT += sdt;
-      const prog = clamp01(b.travelT / (b.travelDur || 1));
+        const r = Math.random();
+        let kind = "normal";
 
-      if (b.phase === 0){
-        const d = Math.hypot(b.gx - b.x, b.gy - b.y);
-        if (d <= b.gRadius) b.phase = 1;
-      }
+        const fastChance = Math.min(0.32, 0.08 + (level-1)*0.02);
+        const heavyChance = Math.min(0.26, 0.06 + (level-1)*0.015);
 
-      const aimX = (b.phase === 0) ? b.gx : b.fx;
-      const aimY = (b.phase === 0) ? b.gy : b.fy;
+        if (r < fastChance) kind = "fast";
+        else if (r < fastChance + heavyChance) kind = "heavy";
 
-      const baseDir = norm2(aimX - b.x, aimY - b.y);
-      const vel = applyPitchForces(b, baseDir, prog);
+        spawnEnemy(W, H, kind);
 
-      b.vx = vel.vx;
-      b.vy = vel.vy;
-
-      b.x += b.vx * sdt;
-      b.y += b.vy * sdt;
-
-      b.toPlateDist = Math.hypot(tx - b.x, ty - b.y);
-
-      if (b.y + b.r >= band.bot){
-        const hitsPlateLane = circleRectHit(b.x, b.y, b.r, band.x, band.y, band.w, band.h);
-        if (hitsPlateLane) plateHitByEnemy(b);
-        else b.alive = false;
-        continue;
-      }
-
-      if (b.x < -220 || b.x > W + 220 || b.y < -220 || b.y > H + 220){
-        b.alive = false;
+        if (level >= 7 && Math.random() < 0.10){
+          spawnEnemy(W, H, Math.random() < 0.5 ? "fast" : "normal");
+        }
       }
     }
 
+    // move normal enemies + plate-hold
+    if (spec.type !== "boss"){
+      const tx = band.x + band.w/2;
+      const ty = band.y + band.h/2;
+
+      for (const b of balls){
+        if (!b.alive) continue;
+
+        b.justHitT = Math.max(0, b.justHitT - sdt);
+
+        if (b.pendingPlate) continue;
+
+        b.wobPhase += sdt * 6;
+
+        const dx = tx - b.x;
+        const dy = ty - b.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        b.toPlateDist = dist;
+
+        const dir = { x: dx/dist, y: dy/dist };
+        const perp = { x: -dir.y, y: dir.x };
+        const wob = Math.sin(b.wobPhase) * b.wobMag;
+
+        b.vx = dir.x * b.speed + perp.x * wob;
+        b.vy = dir.y * b.speed + perp.y * wob;
+
+        b.x += b.vx * sdt;
+        b.y += b.vy * sdt;
+
+        const minX = zone.x + b.r;
+        const maxX = zone.x + zone.w - b.r;
+        b.x = clamp(b.x, minX, maxX);
+
+        if (b.y + b.r >= band.bot){
+          const hittableNow = swingActive && !player.swingConsumed &&
+            circleRectHit(b.x, b.y, b.r, expandedZone.x, expandedZone.y, expandedZone.w, expandedZone.h);
+
+          if (hittableNow){
+            b.pendingPlate = true;
+            b.y = band.bot - b.r - PLATE_HOLD_EPS;
+          } else {
+            b.alive = false;
+            applyPlateDamage(1);
+          }
+        }
+      }
+    }
+
+    // boss update
+    if (spec.type === "boss"){
+      updateBossFight(sdt, W, H, zone, band, swingActive, expandedZone);
+    }
+
+    // pickups
     for (const p of pickups){
       p.t += sdt;
       p.vy += 900 * sdt;
       p.y += p.vy * sdt;
+
+      const tx = band.x + band.w/2;
       p.x += (tx - p.x) * sdt * 0.25;
 
       if (circleRectHit(p.x, p.y, p.r, player.x, player.y, player.w, player.h)){
@@ -1364,6 +1640,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       if (p.y > H + 80) p.alive = false;
     }
 
+    // explosions
     for (const ex of explosions){
       ex.t += sdt;
       const fd = 1 / ex.fps;
@@ -1377,25 +1654,30 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       }
     }
 
+    // shots
     updateShots(sdt, W, H);
 
-    // ===== Swing overlap grading (normalized to BAT circle) =====
-    const swingActive = (player.swing || player.swingAge <= player.swingWindow + LATE_GRACE);
-    if (swingActive){
+    // SWING contact (one hit per swing)
+    if (swingActive && !player.swingConsumed){
       const batR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
 
-      const len = clamp(upgrades.perfectBonus * 1.25, 0, 0.22);
-      const thrPerfect = clamp(OVERLAP_PERFECT - len, 0.60, 0.98);
-      const thrGood    = clamp(OVERLAP_GOOD    - len, 0.45, 0.95);
+      const perfectWindow = PERFECT_W + upgrades.perfectBonus;
+      const goodWindow    = GOOD_W + upgrades.perfectBonus;
 
-      const expandedZone = {
-        x: zone.x - CHASE_MARGIN,
-        y: zone.y - CHASE_MARGIN,
-        w: zone.w + CHASE_MARGIN*2,
-        h: zone.h + CHASE_MARGIN*2,
-      };
+      const timing01 = clamp01(player.swingAge / Math.max(0.0001, player.swingWindow));
+      const timeGrade =
+        (player.swingAge <= perfectWindow) ? "perfect" :
+        (player.swingAge <= goodWindow)    ? "good" :
+        "normal";
 
-      for (const b of balls){
+      const thrPerfect = OVERLAP_PERFECT;
+      const thrGood    = OVERLAP_GOOD;
+
+      const pool = boss.alive ? bossPitches : balls;
+
+      let didAnyContact = false;
+
+      for (const b of pool){
         if (!b.alive) continue;
         if (b.lastHitSwingToken === swingToken) continue;
 
@@ -1403,37 +1685,101 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
         if (!inHittable) continue;
 
         const d = Math.hypot(b.x - aimPt.x, b.y - aimPt.y);
-
         const overlapA = circleOverlapArea(b.r, batR, d);
         const batA = Math.PI * batR * batR;
-        const frac = overlapA / (batA || 1); // how much of your circle is "on the ball"
-
+        const frac = overlapA / (batA || 1);
         if (frac <= 0.001) continue;
 
-        const grade =
+        const overlapGrade =
           (frac >= thrPerfect) ? "perfect" :
           (frac >= thrGood)    ? "good" :
           "normal";
 
-        const didHit = dealDamageToBall(b, 1, W, H, { isPerfect: (grade === "perfect"), fromSkill: false });
-        if (didHit){
-          b.lastHitSwingToken = swingToken;
+        const grade =
+          (overlapGrade === "perfect" || timeGrade === "perfect") ? "perfect" :
+          (overlapGrade === "good"    || timeGrade === "good")    ? "good" :
+          "normal";
 
-          if (grade === "good"){
-            spawnPopupStacked(aimPt.x, aimPt.y - 22, "GOOD", "good");
-            combo += 1; comboTimer = COMBO_DECAY;
-            score += 2 * getMult();
-          } else if (grade === "perfect"){
-            spawnPopupStacked(aimPt.x, aimPt.y - 22, "PERFECT!", "perfect");
-            combo += 3; comboTimer = COMBO_DECAY;
-            score += 6 * getMult();
+        b.lastHitSwingToken = swingToken;
+        b.pendingPlate = false;
+
+        didAnyContact = true;
+
+        if (boss.alive){
+          b.alive = false;
+
+          if (grade === "good") spawnPopupStacked(aimPt.x, aimPt.y - 22, "GOOD", "good");
+          if (grade === "perfect") spawnPopupStacked(aimPt.x, aimPt.y - 22, "PERFECT!", "perfect");
+
+          createReturnBall(b.x, b.y, grade, aimPt, zone, timing01);
+
+          combo += (grade === "perfect") ? 2 : 1;
+          comboTimer = COMBO_DECAY;
+
+          shakeMag = Math.max(shakeMag, grade === "perfect" ? 14 : 10);
+          shakeT = Math.max(shakeT, 0.16);
+          spawnExplosion(b.x, b.y, grade !== "normal");
+        } else {
+          const didHit = dealDamageToEnemyBall(b, 1, { isPerfect: (grade === "perfect") });
+          if (didHit && b.alive){
+            b.justHitT = 0.22;
+            b.y -= 26;
+            b.vy = -Math.abs(b.vy) * 0.85;
+            b.vx *= 0.55;
+          }
+
+          if (didHit){
+            if (grade === "good"){
+              spawnPopupStacked(aimPt.x, aimPt.y - 22, "GOOD", "good");
+              combo += 1; comboTimer = COMBO_DECAY; score += 2 * getMult();
+            } else if (grade === "perfect"){
+              spawnPopupStacked(aimPt.x, aimPt.y - 22, "PERFECT!", "perfect");
+              combo += 3; comboTimer = COMBO_DECAY; score += 6 * getMult();
+            }
           }
         }
+
+        // Consume swing immediately (prevents “holding swing hits everything”)
+        if (didAnyContact){
+          player.swingConsumed = true;
+          endSwingImmediately();
+          break;
+        }
+      }
+    }
+
+    // Resolve pending plate-cross AFTER swing
+    if (!boss.alive){
+      for (const b of balls){
+        if (!b.alive) continue;
+        if (!b.pendingPlate) continue;
+
+        if (b.justHitT > 0){
+          b.pendingPlate = false;
+          continue;
+        }
+
+        b.pendingPlate = false;
+        b.alive = false;
+        applyPlateDamage(1);
+      }
+    } else {
+      const bandRect = band;
+      for (const p of bossPitches){
+        if (!p.alive) continue;
+        if (!p.pendingPlate) continue;
+
+        p.pendingPlate = false;
+        p.alive = false;
+
+        const hitsPlateLane = circleRectHit(p.x, p.y, p.r, bandRect.x, bandRect.y, bandRect.w, bandRect.h);
+        if (hitsPlateLane) applyPlateDamage(1);
       }
     }
 
     if (spec.type === "survive" && levelTime >= spec.target) finishLevel();
 
+    // cleanup
     for (let i = balls.length - 1; i >= 0; i--) if (!balls[i].alive) balls.splice(i, 1);
     for (let i = explosions.length - 1; i >= 0; i--) if (!explosions[i].alive) explosions.splice(i, 1);
     for (let i = pickups.length - 1; i >= 0; i--) if (!pickups[i].alive) pickups.splice(i, 1);
@@ -1445,6 +1791,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       shakeMag = Math.max(0, shakeMag - dt * 60);
     }
 
+    // UI
     const mult = getMult();
     const shieldTxt = buffs.shield > 0 ? `🛡${buffs.shield} ` : "";
     const slowTxt = buffs.slowmo > 0 ? "🕒 " : "";
@@ -1455,7 +1802,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     let objTxt = "";
     if (spec.type === "kills") objTxt = `OBJ ${levelKills}/${spec.target}`;
     if (spec.type === "survive") objTxt = `OBJ ${Math.floor(levelTime)}/${spec.target}s`;
-    if (spec.type === "boss") objTxt = `OBJ BOSS`;
+    if (spec.type === "boss") objTxt = boss.alive ? `BOSS ${boss.hp}/${boss.maxHp}` : "BOSS";
 
     const cdV = player.skillVCD > 0 ? player.skillVCD.toFixed(1) : "READY";
     const cdH = player.skillHCD > 0 ? player.skillHCD.toFixed(1) : "READY";
@@ -1466,7 +1813,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       `VERT ${cdV} • HORZ ${cdH}`;
   }
 
-  // ===== Draw =====
+  // Draw
   function draw(W, H){
     let camX = 0, camY = 0;
     if (shakeT > 0){
@@ -1500,6 +1847,36 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     const aimPt = getAimPoint(zone);
     const batR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
 
+    // BIG boss HP bar (top)
+    if (boss.alive){
+      const bw = Math.min(620, W - 40);
+      const bh = 18;
+      const bx = (W - bw) / 2;
+      const by = 14;
+
+      ctx.save();
+      ctx.globalAlpha = 0.70;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(bx, by, bw, bh);
+
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.70)";
+      ctx.strokeRect(bx, by, bw, bh);
+
+      const frac = clamp(boss.hp / Math.max(1, boss.maxHp), 0, 1);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(bx + 2, by + 2, (bw - 4) * frac, bh - 4);
+
+      ctx.font = "950 12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#0b1020";
+      ctx.fillText(`BOSS HP ${boss.hp}/${boss.maxHp}`, bx + bw/2, by + bh/2);
+      ctx.restore();
+    }
+
+    // Strike zone
     if (STRIKE_ZONE_VISIBLE){
       ctx.save();
       ctx.globalAlpha = 0.14;
@@ -1517,21 +1894,21 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       ctx.restore();
     }
 
-    // bat circle (lighter fill so it doesn't "cover the box")
+    // Bat circle
     ctx.save();
-    ctx.globalAlpha = 0.22;
+    ctx.globalAlpha = 0.20;
     ctx.fillStyle = "rgba(0,0,0,0.60)";
     ctx.beginPath();
     ctx.arc(aimPt.x + 2, aimPt.y + 2, batR, 0, Math.PI*2);
     ctx.fill();
 
-    ctx.globalAlpha = 0.10;
+    ctx.globalAlpha = 0.08;
     ctx.fillStyle = "rgba(255,255,255,0.90)";
     ctx.beginPath();
     ctx.arc(aimPt.x, aimPt.y, batR, 0, Math.PI*2);
     ctx.fill();
 
-    ctx.globalAlpha = 0.88;
+    ctx.globalAlpha = 0.90;
     ctx.lineWidth = 3;
     ctx.strokeStyle = "rgba(255,255,255,0.92)";
     ctx.beginPath();
@@ -1548,6 +1925,7 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     ctx.stroke();
     ctx.restore();
 
+    // bottom wash
     ctx.globalAlpha = 0.18;
     ctx.fillStyle = "#000";
     ctx.fillRect(0, band.y, W, H - band.y);
@@ -1562,7 +1940,32 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     ctx.fill();
     ctx.restore();
 
-    // player
+    // Boss
+    if (boss.alive){
+      const enemyImg = (theme === "emoji" && IMG.enemy2) ? IMG.enemy2 : IMG.ball;
+
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.ellipse(boss.x, boss.y + boss.r * 0.75, boss.r * 0.98, boss.r * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.65)";
+      ctx.shadowBlur = 14;
+      ctx.shadowOffsetY = 6;
+      if (enemyImg) ctx.drawImage(enemyImg, boss.x - boss.r, boss.y - boss.r, boss.r*2, boss.r*2);
+      else {
+        ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2);
+        ctx.fillStyle = "#ffcc33";
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Player
     const useSwingPose = player.swingPoseTimer > 0;
     const pimg = useSwingPose ? IMG.pSwingFollow : IMG.player;
 
@@ -1587,15 +1990,22 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       if (!s.alive) continue;
       const size = s.r * 2;
       if (shotImg) ctx.drawImage(shotImg, s.x - s.r, s.y - s.r, size, size);
-      else {
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-        ctx.fillStyle = "#fff"; ctx.fill();
-      }
+      else { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill(); }
     }
 
-    // enemies
+    // returns
+    for (const r of returns){
+      if (!r.alive) continue;
+      const size = r.r * 2;
+      if (shotImg) ctx.drawImage(shotImg, r.x - r.r, r.y - r.r, size, size);
+      else { ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill(); }
+    }
+
+    // enemies or boss pitches
     const enemyImg = (theme === "emoji" && IMG.enemy2) ? IMG.enemy2 : IMG.ball;
-    for (const b of balls){
+    const pool = boss.alive ? bossPitches : balls;
+
+    for (const b of pool){
       if (!b.alive) continue;
 
       const size = b.r * 2;
@@ -1611,16 +2021,49 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       ctx.save();
       ctx.shadowColor = "rgba(0,0,0,0.65)";
       ctx.shadowBlur = 10;
-      ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 4;
 
       if (enemyImg) ctx.drawImage(enemyImg, b.x - b.r, b.y - b.r, size, size);
-      else {
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
-        ctx.fillStyle = b.kind === "boss" ? "#ffcc33" : "#ff3b3b";
-        ctx.fill();
-      }
+      else { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fillStyle = "#ff3b3b"; ctx.fill(); }
       ctx.restore();
+
+      if (boss.alive && b.pitchId && b.labelT > 0){
+        ctx.save();
+        ctx.globalAlpha = clamp(b.labelT / 0.75, 0, 1) * 0.95;
+        ctx.font = "950 12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        ctx.textAlign = "center";
+        ctx.shadowColor = "rgba(0,0,0,0.55)";
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = "#fff";
+        ctx.fillText(b.pitchId, b.x, b.y - b.r - 14);
+        ctx.restore();
+      }
+    }
+
+    // pickups
+    for (const p of pickups){
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      ctx.fillStyle = "#0b1020";
+      ctx.font = "900 14px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.textAlign = "center";
+      const label = p.type === "slowmo" ? "S" : p.type === "double" ? "2X" : p.type === "magnet" ? "M" : "🛡";
+      ctx.fillText(label, p.x, p.y + 5);
+    }
+
+    // explosions
+    const exImg = IMG.explosion;
+    if (exImg){
+      for (const ex of explosions){
+        const fw = exImg.width / ex.frameCount;
+        const fh = exImg.height;
+        const sx = ex.frame * fw;
+        ctx.drawImage(exImg, sx, 0, fw, fh, ex.x - ex.size/2, ex.y - ex.size/2, ex.size, ex.size);
+      }
     }
 
     // popups
@@ -1645,6 +2088,22 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       ctx.restore();
     }
 
+    // level banner
+    const spec = getLevelSpec(level);
+    if (levelBannerT > 0 && hp > 0){
+      const a = clamp(levelBannerT / 1.4, 0, 1);
+      ctx.globalAlpha = 0.75 * a;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, 86);
+      ctx.globalAlpha = 1 * a;
+      ctx.fillStyle = "#fff";
+      ctx.font = "900 28px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.textAlign = "left";
+      ctx.fillText(spec.banner, 16, 54);
+      ctx.globalAlpha = 1;
+    }
+
+    // game over
     if (hp <= 0){
       ctx.globalAlpha = 0.65;
       ctx.fillStyle = "#000";
@@ -1655,13 +2114,13 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
       ctx.textAlign = "center";
       ctx.fillText("GAME OVER", W/2, H/2 - 12);
       ctx.font = "700 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-      ctx.fillText("Press R to restart.", W/2, H/2 + 26);
+      ctx.fillText("Tap RESTART.", W/2, H/2 + 26);
     }
 
     ctx.restore();
   }
 
-  // ===== Loop =====
+  // Loop
   let last = 0;
   function loop(ts){
     const W = canvas.clientWidth;
@@ -1676,11 +2135,13 @@ bindTap(document.getElementById("btnRestart"), () => resetRun());
     requestAnimationFrame(loop);
   }
 
+  // Boot
   Promise.all(ASSETS).finally(() => {
     resize();
     resetRun();
     requestAnimationFrame(loop);
   });
+
 })();
 </script>
 </body>
