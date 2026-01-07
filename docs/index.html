@@ -333,26 +333,30 @@ R restart
   const ASSETS = [
     loadImg("bg", "assets/back_alley_background.png"),
     loadImg("bg2", "assets/emoji_town_background.png"),
+    loadImg("bg3", "assets/subway_background.png"),
     loadImg("player", "assets/baeball_player.png"),
     loadImg("pSwingFollow", "assets/baseball_player_swing.png"),
     loadImg("ball", "assets/evil_baseball_1.png"),
     loadImg("enemy2", "assets/creepy_smile.png"),
+    loadImg("enemy3", "assets/subway_sandwich.png"),
     loadImg("explosion", "assets/explosion.png"),
     loadImg("skillV", "assets/vertical_slash_skill.png"),
     loadImg("skillH", "assets/horizontal_slash_skill.png"),
   ];
 
+
   // Config
   const STRIKE_ZONE_VISIBLE = true;
   const PLATE_Y_FRAC = 0.90;
 
-  const STRIKE_W = 150;
+  const STRIKE_W = 112;
   const BAND_H = 24;
 
-  const SHOULDER_FRAC = 0.35;
-  const KNEE_FRAC     = 0.74;
+  const SHOULDER_FRAC = 0.26;
+  const KNEE_FRAC     = 0.84;
 
-  const STANCE_OFFSET = 130;
+
+  const STANCE_OFFSET = 160;
 
   const AIM_PAD = 10;
   const CHASE_MARGIN = 22;
@@ -377,6 +381,37 @@ R restart
   function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
   function clamp01(v){ return Math.max(0, Math.min(1, v)); }
   function lerp(a, b, t){ return a + (b - a) * t; }
+  function triWave(a){
+    // [-1..1] triangle wave (sharper “zig-zag” than sine)
+    return (2 / Math.PI) * Math.asin(Math.sin(a));
+  }
+  function triWave(a){
+    return (2 / Math.PI) * Math.asin(Math.sin(a)); // [-1..1] triangle wave
+  }
+
+  function pickApproachX(zone, expandedZone){
+    const padIn = 14;
+    const padOut = 10;
+
+    const pts = [
+      { x: zone.x + padIn, w: 2.0 },                         // inside-left
+      { x: zone.x + zone.w - padIn, w: 2.0 },                // inside-right
+      { x: expandedZone.x + padOut, w: 3.2 },                // outside-left
+      { x: expandedZone.x + expandedZone.w - padOut, w: 3.2 }, // outside-right
+      { x: zone.x + zone.w * 0.25, w: 1.4 },                 // inner-left
+      { x: zone.x + zone.w * 0.75, w: 1.4 },                 // inner-right
+    ];
+
+    let total = 0;
+    for (const p of pts) total += p.w;
+
+    let r = Math.random() * total;
+    for (const p of pts){
+      r -= p.w;
+      if (r <= 0) return p.x;
+    }
+    return pts[0].x;
+  }
 
   function norm2(x, y){
     const l = Math.hypot(x, y) || 1;
@@ -432,7 +467,7 @@ R restart
   // Player
   const player = {
     x: 0, y: 0,
-    w: 120, h: 180,
+    w: 160, h: 240,
     stance: "righty",
     facing: 1,
 
@@ -655,13 +690,21 @@ R restart
   let levelTime = 0;
   let levelBannerT = 1.4;
 
-  const LEVELS = [
+  const LEVEL_PATTERN = [
     { type:"kills", target:8 },
     { type:"survive", target:18 },
     { type:"kills", target:14 },
     { type:"survive", target:24 },
     { type:"boss", target:1 },
   ];
+
+  const THEME_ORDER = ["alley", "subway", "emoji"];
+
+  const LEVELS = THEME_ORDER.flatMap((theme) =>
+    LEVEL_PATTERN.map((s) => ({ ...s, theme }))
+  );
+
+
 
   function getLevelSpec(lv){
     const base = LEVELS[(lv-1) % LEVELS.length];
@@ -680,8 +723,10 @@ R restart
   }
 
   function getTheme(lv){
-    return (lv >= 6) ? "emoji" : "alley";
+    return LEVELS[(lv-1) % LEVELS.length].theme;
   }
+
+
 
   function difficultyT(){
     return clamp01((level - 1) / 18);
@@ -968,16 +1013,36 @@ R restart
     }
   }
 
-function spawnEnemy(W, H, kind="normal"){
+function spawnEnemy(W, H, zone, expandedZone, kind="normal"){
   const speedScale = 1 + (level-1) * 0.06;
 
   // All basic enemies are 1 HP (one hit kills)
   let r = 42, hpv = 1, scoreV = 10, spd = (280 + Math.random()*120) * speedScale;
 
-  if (kind === "fast"){ r=30; hpv=1; scoreV=18; spd=(380 + Math.random()*140) * speedScale; }
+  let wobMag = 18;
+  let wobSpeed = 8;
 
-  // keep "heavy" as a different FEEL (bigger, maybe more score), but still 1 HP
-  if (kind === "heavy"){ r=52; hpv=1; scoreV=25; spd=(240 + Math.random()*100) * speedScale; }
+  if (kind === "fast"){
+    r = 30; hpv = 1; scoreV = 18;
+    spd = (380 + Math.random()*160) * speedScale;
+    wobMag = 28;
+    wobSpeed = 12;
+  }
+
+  if (kind === "heavy"){
+    r = 52; hpv = 1; scoreV = 25;
+    spd = (240 + Math.random()*110) * speedScale;
+    wobMag = 16;
+    wobSpeed = 7;
+  }
+
+  // Subway sandwich: VERY visible + VERY zig-zaggy
+  if (kind === "sandwich"){
+    r = 56; hpv = 1; scoreV = 34;
+    spd = (300 + Math.random()*140) * speedScale;
+    wobMag = 85;   // BIG lateral movement
+    wobSpeed = 16; // FAST zig-zag
+  }
 
   const lane = (Math.random() * 3) | 0;
   let x, y;
@@ -992,14 +1057,24 @@ function spawnEnemy(W, H, kind="normal"){
     scoreV,
     speed: spd,
     vx:0, vy:0,
+
     wobPhase: Math.random()*Math.PI*2,
-    wobMag: 10,
+    wobMag,
+    wobSpeed,
+    zigzag: (kind === "sandwich"),
+
+    targetX: pickApproachX(zone, expandedZone),
+    retargeted: false,
+
     toPlateDist: 9999,
     lastHitSwingToken: -1,
     pendingPlate: false,
     justHitT: 0,
   });
 }
+
+
+
 
 
   function dealDamageToEnemyBall(b, dmg, {isPerfect=false, fromSkill=false} = {}){
@@ -1127,17 +1202,18 @@ function spawnEnemy(W, H, kind="normal"){
     const vdir = norm2(p.vx, p.vy);
     const perp = { x: -vdir.y, y: vdir.x };
 
-    const curveMag = (18 + 32 * late) * p.curveK * (0.65 + 0.35 * wob);
+    const curveMag = (18 + 32 * late) * (p.curveK || 0) * (0.65 + 0.35 * wob);
     p.vx += perp.x * curveMag * dt;
     p.vy += perp.y * curveMag * dt;
 
-    const sinkMag = (65 * late) * p.sinkK;
+    const sinkMag = (65 * late) * (p.sinkK || 0);
     p.vy += sinkMag * dt;
 
     const nd = norm2(p.vx, p.vy);
     p.vx = nd.x * p.speed;
     p.vy = nd.y * p.speed;
   }
+
 
   function createReturnBall(fromX, fromY, grade, aimPt, zone, timing01){
     const timing = clamp((0.5 - timing01) * 2, -1, 1); // early:+1, late:-1
@@ -1554,16 +1630,27 @@ document.addEventListener("visibilitychange", () => {
       if (spawnT >= interval){
         spawnT = 0;
 
-        const r = Math.random();
         let kind = "normal";
+        const themeNow = getTheme(level);
+        const r = Math.random();
 
-        const fastChance = Math.min(0.32, 0.08 + (level-1)*0.02);
-        const heavyChance = Math.min(0.26, 0.06 + (level-1)*0.015);
+        if (themeNow === "subway"){
+          if (r < 0.70) kind = "sandwich";
+          else if (r < 0.84) kind = "fast";
+          else if (r < 0.94) kind = "heavy";
+          else kind = "normal";
+        } else {
+          const fastChance = Math.min(0.32, 0.08 + (level-1)*0.02);
+          const heavyChance = Math.min(0.26, 0.06 + (level-1)*0.015);
 
-        if (r < fastChance) kind = "fast";
-        else if (r < fastChance + heavyChance) kind = "heavy";
+          if (r < fastChance) kind = "fast";
+          else if (r < fastChance + heavyChance) kind = "heavy";
+        }
 
-        spawnEnemy(W, H, kind);
+          spawnEnemy(W, H, zone, expandedZone, Math.random() < 0.5 ? "fast" : "normal");
+
+
+
 
         if (level >= 7 && Math.random() < 0.10){
           spawnEnemy(W, H, Math.random() < 0.5 ? "fast" : "normal");
@@ -1583,16 +1670,27 @@ document.addEventListener("visibilitychange", () => {
 
         if (b.pendingPlate) continue;
 
-        b.wobPhase += sdt * 6;
+        b.wobPhase += sdt * (b.wobSpeed || 8);
 
-        const dx = tx - b.x;
+
+
+        if (!b.retargeted && b.toPlateDist < 520){
+          b.retargeted = true;
+          b.targetX = pickApproachX(zone, expandedZone);
+        }
+
+        const dx = (b.targetX ?? tx) - b.x;
         const dy = ty - b.y;
+
         const dist = Math.hypot(dx, dy) || 1;
         b.toPlateDist = dist;
 
         const dir = { x: dx/dist, y: dy/dist };
         const perp = { x: -dir.y, y: dir.x };
-        const wob = Math.sin(b.wobPhase) * b.wobMag;
+        const wave = b.zigzag ? triWave(b.wobPhase) : Math.sin(b.wobPhase);
+        const wobAmp = (b.wobMag || 18) * (0.35 + 0.85 * clamp01(1 - (b.toPlateDist / 720)));
+        const wob = wave * wobAmp;
+
 
         b.vx = dir.x * b.speed + perp.x * wob;
         b.vy = dir.y * b.speed + perp.y * wob;
@@ -1600,9 +1698,10 @@ document.addEventListener("visibilitychange", () => {
         b.x += b.vx * sdt;
         b.y += b.vy * sdt;
 
-        const minX = zone.x + b.r;
-        const maxX = zone.x + zone.w - b.r;
+        const minX = expandedZone.x + b.r;
+        const maxX = expandedZone.x + expandedZone.w - b.r;
         b.x = clamp(b.x, minX, maxX);
+
 
         if (b.y + b.r >= band.bot){
           const hittableNow = swingActive && !player.swingConsumed &&
@@ -1825,7 +1924,11 @@ document.addEventListener("visibilitychange", () => {
     ctx.translate(camX, camY);
 
     const theme = getTheme(level);
-    const bg = (theme === "emoji" && IMG.bg2) ? IMG.bg2 : IMG.bg;
+    const bg =
+      (theme === "subway" && IMG.bg3) ? IMG.bg3 :
+      (theme === "emoji" && IMG.bg2) ? IMG.bg2 :
+      IMG.bg;
+
 
     if (bg){
       const ar = bg.width / bg.height;
@@ -1942,7 +2045,11 @@ document.addEventListener("visibilitychange", () => {
 
     // Boss
     if (boss.alive){
-      const enemyImg = (theme === "emoji" && IMG.enemy2) ? IMG.enemy2 : IMG.ball;
+        const enemyImg =
+        (theme === "subway" && IMG.enemy3) ? IMG.enemy3 :
+        (theme === "emoji" && IMG.enemy2) ? IMG.enemy2 :
+        IMG.ball;
+
 
       ctx.save();
       ctx.globalAlpha = 0.55;
@@ -2002,13 +2109,22 @@ document.addEventListener("visibilitychange", () => {
     }
 
     // enemies or boss pitches
-    const enemyImg = (theme === "emoji" && IMG.enemy2) ? IMG.enemy2 : IMG.ball;
+    const defaultEnemyImg =
+      (theme === "emoji" && IMG.enemy2) ? IMG.enemy2 :
+      IMG.ball;
+
+
     const pool = boss.alive ? bossPitches : balls;
 
     for (const b of pool){
       if (!b.alive) continue;
 
-      const size = b.r * 2;
+      const enemyImg = (b.kind === "sandwich" && IMG.enemy3) ? IMG.enemy3 : defaultEnemyImg;
+
+      const scale = (b.kind === "sandwich") ? 1.35 : 1.0;
+      const size = b.r * 2 * scale;
+
+
 
       ctx.save();
       ctx.globalAlpha = 0.55;
@@ -2020,10 +2136,24 @@ document.addEventListener("visibilitychange", () => {
 
       ctx.save();
       ctx.shadowColor = "rgba(0,0,0,0.65)";
-      ctx.shadowBlur = 10;
+      ctx.shadowBlur = (b.kind === "sandwich") ? 18 : 10;
+
       ctx.shadowOffsetY = 4;
 
-      if (enemyImg) ctx.drawImage(enemyImg, b.x - b.r, b.y - b.r, size, size);
+      if (enemyImg){
+        if (b.kind === "sandwich"){
+          ctx.save();
+          ctx.globalAlpha = 0.20;
+          ctx.fillStyle = "#fff";
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r * 0.90, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.drawImage(enemyImg, b.x - size/2, b.y - size/2, size, size);
+      }
+
       else { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fillStyle = "#ff3b3b"; ctx.fill(); }
       ctx.restore();
 
