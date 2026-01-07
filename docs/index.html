@@ -344,22 +344,25 @@ R restart
     loadImg("skillH", "assets/horizontal_slash_skill.png"),
   ];
 
-
   // Config
-  const STRIKE_ZONE_VISIBLE = true;
-  const PLATE_Y_FRAC = 0.90;
+const STRIKE_ZONE_VISIBLE = true;
+const PLATE_Y_FRAC = 0.90;
 
-  const STRIKE_W = 112;
-  const BAND_H = 24;
+const PLATE_LANE_W = 132;   // contact band width (was STRIKE_W_BAND)
+const BAND_H = 24;
 
-  const SHOULDER_FRAC = 0.26;
-  const KNEE_FRAC     = 0.84;
+const STRIKE_ZONE_W = 132;  // strike box width  ✅ change this
+const STRIKE_ZONE_H = 200;  // strike box height ✅ change this
+const STRIKE_ZONE_GAP = 18; // vertical gap above the band
 
+const STANCE_OFFSET = 185;
 
-  const STANCE_OFFSET = 160;
+const HP_START = 6;
+const HP_MAX   = 10;
+
 
   const AIM_PAD = 10;
-  const CHASE_MARGIN = 22;
+  const CHASE_MARGIN = 90; // wider lanes so enemies go inside/outside of zone
 
   const BAT_R_BASE = 22;
   const BAT_R_PER_UPG = 0.55;
@@ -378,28 +381,40 @@ R restart
 
   const PLATE_HOLD_EPS = 0.1;
 
+  // Aim penalty: if you camp aim too long, your bat radius & overlap forgiveness shrink
+  const AIM_STILL_T_START = 0.85;
+  const AIM_STILL_T_FULL  = 2.05;
+  const AIM_STILL_EPS     = 0.012;
+  const AIM_PENALTY_BAT_SHRINK = 0.35;
+
   function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
   function clamp01(v){ return Math.max(0, Math.min(1, v)); }
   function lerp(a, b, t){ return a + (b - a) * t; }
+
   function triWave(a){
-    // [-1..1] triangle wave (sharper “zig-zag” than sine)
-    return (2 / Math.PI) * Math.asin(Math.sin(a));
-  }
-  function triWave(a){
-    return (2 / Math.PI) * Math.asin(Math.sin(a)); // [-1..1] triangle wave
+    return (2 / Math.PI) * Math.asin(Math.sin(a)); // [-1..1]
   }
 
   function pickApproachX(zone, expandedZone){
-    const padIn = 14;
-    const padOut = 10;
+    const padIn = 10;
+    const padOut = 6;
+
+    const leftIn  = zone.x + padIn;
+    const rightIn = zone.x + zone.w - padIn;
+
+    const leftOut  = expandedZone.x + padOut;
+    const rightOut = expandedZone.x + expandedZone.w - padOut;
+
+    const leftMid  = zone.x + zone.w * 0.28;
+    const rightMid = zone.x + zone.w * 0.72;
 
     const pts = [
-      { x: zone.x + padIn, w: 2.0 },                         // inside-left
-      { x: zone.x + zone.w - padIn, w: 2.0 },                // inside-right
-      { x: expandedZone.x + padOut, w: 3.2 },                // outside-left
-      { x: expandedZone.x + expandedZone.w - padOut, w: 3.2 }, // outside-right
-      { x: zone.x + zone.w * 0.25, w: 1.4 },                 // inner-left
-      { x: zone.x + zone.w * 0.75, w: 1.4 },                 // inner-right
+      { x: leftOut,  w: 5.0 },
+      { x: rightOut, w: 5.0 },
+      { x: leftIn,   w: 3.0 },
+      { x: rightIn,  w: 3.0 },
+      { x: leftMid,  w: 1.4 },
+      { x: rightMid, w: 1.4 },
     ];
 
     let total = 0;
@@ -442,20 +457,36 @@ R restart
     return { x: W * 0.5, y: H * PLATE_Y_FRAC };
   }
 
-  function getContactBandFromPlate(W, H){
-    const plate = getPlate(W, H);
-    const bot = Math.min(H - 18, plate.y);
-    const y = bot - BAND_H;
-    return { x: plate.x - STRIKE_W / 2, y, w: STRIKE_W, h: BAND_H, top: y, bot };
-  }
+function getContactBandFromPlate(W, H){
+  const plate = getPlate(W, H);
+  const bot = Math.min(H - 18, plate.y);
+  const y = bot - BAND_H;
+  return { x: plate.x - PLATE_LANE_W / 2, y, w: PLATE_LANE_W, h: BAND_H, top: y, bot };
+}
 
-  function getStrikeZoneFromPlayer(W, H, playerY, playerH){
-    const plate = getPlate(W, H);
-    const shoulderY = playerY + playerH * SHOULDER_FRAC;
-    const kneeY     = playerY + playerH * KNEE_FRAC;
-    const h = Math.max(36, kneeY - shoulderY);
-    return { x: plate.x - STRIKE_W / 2, y: shoulderY, w: STRIKE_W, h, bot: kneeY };
-  }
+function getStrikeZoneFromPlate(W, H){
+  const plate = getPlate(W, H);
+  const band  = getContactBandFromPlate(W, H);
+
+  const y = band.y - STRIKE_ZONE_H - STRIKE_ZONE_GAP;
+  return { x: plate.x - STRIKE_ZONE_W / 2, y, w: STRIKE_ZONE_W, h: STRIKE_ZONE_H, bot: y + STRIKE_ZONE_H };
+}
+
+  // Legacy (kept for reference)
+  function getStrikeZoneFromPlayer(W, H, playerX, playerY, playerW, playerH){
+  const plate = getPlate(W, H);
+
+  const w = Math.max(86, playerW * STRIKE_W_PLAYER_MUL);
+  const h = Math.max(110, w * STRIKE_H_TO_W);
+
+  const cx = plate.x;
+  const cy = playerY + playerH * STRIKE_CENTER_FRAC + STRIKE_Y_OFFSET;
+
+  const x = cx - w / 2;
+  const y = clamp(cy - h / 2, 10, H - h - 120);
+
+  return { x, y, w, h, bot: y + h };
+}
 
   function stackOffset(i){
     if (i === 0) return 0;
@@ -467,7 +498,7 @@ R restart
   // Player
   const player = {
     x: 0, y: 0,
-    w: 160, h: 240,
+    w: 190, h: 285,
     stance: "righty",
     facing: 1,
 
@@ -503,7 +534,6 @@ R restart
     el.addEventListener("pointerdown", (e)=>{ e.preventDefault(); fn(); });
   }
 
-  // Swing must be press-per-swing: trigger on pointerup to avoid “hold”
   function bindPressOnce(el, fn){
     el.addEventListener("pointerdown", (e)=>{ e.preventDefault(); });
     el.addEventListener("pointerup", (e)=>{ e.preventDefault(); fn(); });
@@ -631,7 +661,7 @@ R restart
   const topbar = document.getElementById("topbar");
 
   let score = 0;
-  let hp = 3;
+  let hp = HP_START;
 
   let combo = 0;
   let comboTimer = 0;
@@ -673,6 +703,10 @@ R restart
   let swingToken = 0;
   let popupStackI = 0;
 
+  let aimStillT = 0;
+  let lastAimNX = 0;
+  let lastAimNY = 0;
+
   // Boss
   const boss = {
     alive: false,
@@ -704,8 +738,6 @@ R restart
     LEVEL_PATTERN.map((s) => ({ ...s, theme }))
   );
 
-
-
   function getLevelSpec(lv){
     const base = LEVELS[(lv-1) % LEVELS.length];
     const tier = Math.floor((lv-1) / LEVELS.length);
@@ -726,13 +758,11 @@ R restart
     return LEVELS[(lv-1) % LEVELS.length].theme;
   }
 
-
-
   function difficultyT(){
     return clamp01((level - 1) / 18);
   }
 
-  // Upgrade modal (unchanged logic)
+  // Upgrade modal
   const upgradeModal = document.getElementById("upgradeModal");
   const upgradeChoicesEl = document.getElementById("upgradeChoices");
   const upgradeTitle = document.getElementById("upgradeTitle");
@@ -746,7 +776,11 @@ R restart
     hitbox_plus: { name:"Bigger Sweet Spot", desc:"+20px bat contact radius (easier hits).", apply(){ upgrades.hitboxBonus += 20; } },
     autopitch_2: { name:"Auto Pitch", desc:"Every 5s throw 2 friendly balls.", apply(){ upgrades.autoPitchCount = Math.max(upgrades.autoPitchCount, 2); } },
     cooldown:    { name:"Quick Hands", desc:"Skill cooldowns -10%.", apply(){ upgrades.cdMul *= 0.90; } },
-    hp:          { name:"Extra Heart", desc:"+1 HP (cap 6).", apply(){ hp = Math.min(6, hp + 1); } },
+  hp: {
+    name: "Extra Heart",
+    desc: `+1 HP (cap ${HP_MAX}).`,
+    apply() { hp = Math.min(HP_MAX, hp + 1); }
+  },
     shield:      { name:"Shield Charge", desc:"+1 shield (cap 3).", apply(){ buffs.shield = Math.min(3, buffs.shield + 1); } },
     perfect:     { name:"Timing Master", desc:"Perfect window +0.02s.", apply(){ upgrades.perfectBonus += 0.02; } },
     skill_dmg:   { name:"Sharper Skills", desc:"VERT/HORZ damage +1.", apply(){ upgrades.skillDamageBonus += 1; } },
@@ -979,7 +1013,6 @@ R restart
 
       if (s.x > W + 120 || s.x < -120 || s.y > H + 120 || s.y < -120) s.alive = false;
 
-      // Boss collision: shots can damage boss directly in boss rounds
       if (boss.alive){
         const d = Math.hypot(s.x - boss.x, s.y - boss.y);
         if (d <= boss.r * 0.72 + s.r){
@@ -990,7 +1023,6 @@ R restart
         continue;
       }
 
-      // Normal collision: shots hit enemies
       for (const b of balls){
         if (!b.alive) continue;
         const dx = b.x - s.x, dy = b.y - s.y;
@@ -1013,69 +1045,64 @@ R restart
     }
   }
 
-function spawnEnemy(W, H, zone, expandedZone, kind="normal"){
-  const speedScale = 1 + (level-1) * 0.06;
+  function spawnEnemy(W, H, zone, expandedZone, kind="normal"){
+    const speedScale = 1 + (level-1) * 0.06;
 
-  // All basic enemies are 1 HP (one hit kills)
-  let r = 42, hpv = 1, scoreV = 10, spd = (280 + Math.random()*120) * speedScale;
+    let r = 42, hpv = 1, scoreV = 10, spd = (280 + Math.random()*120) * speedScale;
 
-  let wobMag = 18;
-  let wobSpeed = 8;
+    let wobMag = 18;
+    let wobSpeed = 8;
 
-  if (kind === "fast"){
-    r = 30; hpv = 1; scoreV = 18;
-    spd = (380 + Math.random()*160) * speedScale;
-    wobMag = 28;
-    wobSpeed = 12;
+    if (kind === "fast"){
+      r = 30; hpv = 1; scoreV = 18;
+      spd = (380 + Math.random()*160) * speedScale;
+      wobMag = 28;
+      wobSpeed = 12;
+    }
+
+    if (kind === "heavy"){
+      r = 52; hpv = 1; scoreV = 25;
+      spd = (240 + Math.random()*110) * speedScale;
+      wobMag = 16;
+      wobSpeed = 7;
+    }
+
+    if (kind === "sandwich"){
+      r = 56; hpv = 1; scoreV = 34;
+      spd = (300 + Math.random()*140) * speedScale;
+      wobMag = 110;
+      wobSpeed = 20;
+    }
+
+    const lane = (Math.random() * 3) | 0;
+    let x, y;
+    if (lane === 0){ x = Math.random()*W; y = -80; }
+    else if (lane === 1){ x = -80; y = Math.random()*(H*0.62); }
+    else { x = W + 80; y = Math.random()*(H*0.62); }
+
+    balls.push({
+      kind, x, y, r,
+      alive:true,
+      hp: hpv,
+      scoreV,
+      speed: spd,
+      vx:0, vy:0,
+
+      wobPhase: Math.random()*Math.PI*2,
+      wobMag,
+      wobSpeed,
+      zigzag: (kind === "sandwich"),
+
+      targetX: pickApproachX(zone, expandedZone),
+      retargeted: false,
+
+      toPlateDist: 9999,
+      lastHitSwingToken: -1,
+      pendingPlate: false,
+      justHitT: 0,
+    crossedZone: false,
+    });
   }
-
-  if (kind === "heavy"){
-    r = 52; hpv = 1; scoreV = 25;
-    spd = (240 + Math.random()*110) * speedScale;
-    wobMag = 16;
-    wobSpeed = 7;
-  }
-
-  // Subway sandwich: VERY visible + VERY zig-zaggy
-  if (kind === "sandwich"){
-    r = 56; hpv = 1; scoreV = 34;
-    spd = (300 + Math.random()*140) * speedScale;
-    wobMag = 85;   // BIG lateral movement
-    wobSpeed = 16; // FAST zig-zag
-  }
-
-  const lane = (Math.random() * 3) | 0;
-  let x, y;
-  if (lane === 0){ x = Math.random()*W; y = -80; }
-  else if (lane === 1){ x = -80; y = Math.random()*(H*0.62); }
-  else { x = W + 80; y = Math.random()*(H*0.62); }
-
-  balls.push({
-    kind, x, y, r,
-    alive:true,
-    hp: hpv,
-    scoreV,
-    speed: spd,
-    vx:0, vy:0,
-
-    wobPhase: Math.random()*Math.PI*2,
-    wobMag,
-    wobSpeed,
-    zigzag: (kind === "sandwich"),
-
-    targetX: pickApproachX(zone, expandedZone),
-    retargeted: false,
-
-    toPlateDist: 9999,
-    lastHitSwingToken: -1,
-    pendingPlate: false,
-    justHitT: 0,
-  });
-}
-
-
-
-
 
   function dealDamageToEnemyBall(b, dmg, {isPerfect=false, fromSkill=false} = {}){
     if (!b.alive) return false;
@@ -1189,6 +1216,7 @@ function spawnEnemy(W, H, zone, expandedZone, kind="normal"){
       lastHitSwingToken: -1,
       pendingPlate: false,
       labelT: 0.75,
+      crossedZone: false,
     });
   }
 
@@ -1214,9 +1242,8 @@ function spawnEnemy(W, H, zone, expandedZone, kind="normal"){
     p.vy = nd.y * p.speed;
   }
 
-
   function createReturnBall(fromX, fromY, grade, aimPt, zone, timing01){
-    const timing = clamp((0.5 - timing01) * 2, -1, 1); // early:+1, late:-1
+    const timing = clamp((0.5 - timing01) * 2, -1, 1);
 
     const zoneCx = zone.x + zone.w/2;
     const zoneCy = zone.y + zone.h/2;
@@ -1274,6 +1301,8 @@ function spawnEnemy(W, H, zone, expandedZone, kind="normal"){
 
       p.labelT = Math.max(0, p.labelT - dt);
 
+
+      if (!p.crossedZone && circleRectHit(p.x, p.y, p.r, zone.x, zone.y, zone.w, zone.h)) p.crossedZone = true;
       applyBossPitchMovement(p, dt);
 
       p.x += p.vx * dt;
@@ -1295,7 +1324,12 @@ function spawnEnemy(W, H, zone, expandedZone, kind="normal"){
 
         p.alive = false;
         const hitsPlateLane = circleRectHit(p.x, p.y, p.r, band.x, band.y, band.w, band.h);
-        if (hitsPlateLane) applyPlateDamage(1);
+        if (hitsPlateLane && p.crossedZone){
+          applyPlateDamage(1);
+          spawnPopupStacked(p.x, band.y - 18, "STRIKE!", "strike");
+        } else if (hitsPlateLane && !p.crossedZone){
+          spawnPopupStacked(p.x, band.y - 18, "BALL", "ball");
+        }
       }
     }
 
@@ -1372,7 +1406,7 @@ function spawnEnemy(W, H, zone, expandedZone, kind="normal"){
   // Run control
   function resetRun(){
     score = 0;
-    hp = 3;
+  hp = HP_START;
 
     combo = 0;
     comboTimer = 0;
@@ -1437,90 +1471,91 @@ function spawnEnemy(W, H, zone, expandedZone, kind="normal"){
     aim.nx = 0;
     aim.ny = 0;
     setKnob(0, 0);
+
+    aimStillT = 0;
+    lastAimNX = 0;
+    lastAimNY = 0;
   }
 
-  function startLevel(lv){
-    level = lv;
-    levelKills = 0;
-    levelTime = 0;
-    levelBannerT = 1.4;
-    spawnT = 0;
+function startLevel(lv){
+  level = lv;
 
-    balls.length = 0;
-    bossPitches.length = 0;
-    returns.length = 0;
-    explosions.length = 0;
-    pickups.length = 0;
-    popups.length = 0;
+  // Heal to full ONLY when starting a new level
+  hp = HP_MAX;
 
-    boss.alive = false;
-    boss.hp = 0;
-    boss.maxHp = 0;
-  }
+  levelKills = 0;
+  levelTime = 0;
+  levelBannerT = 1.4;
+  spawnT = 0;
+
+  balls.length = 0;
+  bossPitches.length = 0;
+  returns.length = 0;
+  explosions.length = 0;
+  pickups.length = 0;
+  popups.length = 0;
+
+  boss.alive = false;
+  boss.hp = 0;
+  boss.maxHp = 0;
+}
 
   function finishLevel(){
     openUpgradeModal(level + 1);
   }
 
-// ===== Keyboard (no-hold / no-repeat) =====
-const heldKeys = new Set();
+  // ===== Keyboard (no-hold / no-repeat) =====
+  const heldKeys = new Set();
 
-function keyName(e){
-  return (e.key || "").toLowerCase();
-}
-
-window.addEventListener("keydown", (e) => {
-  const k = keyName(e);
-
-  // prevent OS/browser key-repeat from spamming swing
-  if (e.repeat) return;
-  if (heldKeys.has(k)) return;
-  heldKeys.add(k);
-
-  // always allow restart
-  if (k === "r"){ resetRun(); return; }
-
-  // modal choices
-  if (upgradeOpen){
-    if (k === "1") chooseUpgradeByIndex(0);
-    if (k === "2") chooseUpgradeByIndex(1);
-    if (k === "3") chooseUpgradeByIndex(2);
-    return;
+  function keyName(e){
+    return (e.key || "").toLowerCase();
   }
 
-  if (k === "t") toggleStance();
-  if (k === "a") setStance("righty");
-  if (k === "d") setStance("lefty");
+  window.addEventListener("keydown", (e) => {
+    const k = keyName(e);
 
-  // one-shot press actions
-  if (k === "j") input.swing = true;   // swing cannot be held
-  if (k === "k") input.skillV = true;
-  if (k === "l") input.skillH = true;
+    if (e.repeat) return;
+    if (heldKeys.has(k)) return;
+    heldKeys.add(k);
 
-  // arrow aim (also one-shot-per-press; hold won't repeat)
-  const step = 0.11;
-  if (e.key === "ArrowLeft")  aim.nx = clamp(aim.nx - step, -1, 1);
-  if (e.key === "ArrowRight") aim.nx = clamp(aim.nx + step, -1, 1);
-  if (e.key === "ArrowUp")    aim.ny = clamp(aim.ny - step, -1, 1);
-  if (e.key === "ArrowDown")  aim.ny = clamp(aim.ny + step, -1, 1);
+    if (k === "r"){ resetRun(); return; }
 
-  if (e.key.startsWith("Arrow")){
-    const r = joyEl.getBoundingClientRect();
-    const maxR = (Math.min(r.width, r.height) * 0.5) - 18;
-    setKnob(aim.nx * maxR, aim.ny * maxR);
-  }
-});
+    if (upgradeOpen){
+      if (k === "1") chooseUpgradeByIndex(0);
+      if (k === "2") chooseUpgradeByIndex(1);
+      if (k === "3") chooseUpgradeByIndex(2);
+      return;
+    }
 
-window.addEventListener("keyup", (e) => {
-  heldKeys.delete(keyName(e));
-});
+    if (k === "t") toggleStance();
+    if (k === "a") setStance("righty");
+    if (k === "d") setStance("lefty");
 
-// safety: never get "stuck held" if tab loses focus
-window.addEventListener("blur", () => heldKeys.clear());
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) heldKeys.clear();
-});
+    if (k === "j") input.swing = true;
+    if (k === "k") input.skillV = true;
+    if (k === "l") input.skillH = true;
 
+    const step = 0.11;
+    if (e.key === "ArrowLeft")  aim.nx = clamp(aim.nx - step, -1, 1);
+    if (e.key === "ArrowRight") aim.nx = clamp(aim.nx + step, -1, 1);
+    if (e.key === "ArrowUp")    aim.ny = clamp(aim.ny - step, -1, 1);
+    if (e.key === "ArrowDown")  aim.ny = clamp(aim.ny + step, -1, 1);
+
+    if (e.key.startsWith("Arrow")){
+      const r = joyEl.getBoundingClientRect();
+      const maxR = (Math.min(r.width, r.height) * 0.5) - 18;
+      setKnob(aim.nx * maxR, aim.ny * maxR);
+    }
+  });
+
+  window.addEventListener("keyup", (e) => {
+    heldKeys.delete(keyName(e));
+  });
+
+  window.addEventListener("blur", () => heldKeys.clear());
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) heldKeys.clear();
+  });
 
   // Step
   function step(dt, W, H){
@@ -1573,9 +1608,26 @@ document.addEventListener("visibilitychange", () => {
     player.x = playerCenterX - player.w/2;
     player.y = clamp(plate.y - player.h + 14, 0, H - player.h - 10);
 
-    const zone = getStrikeZoneFromPlayer(W, H, player.y, player.h);
+    const zone = getStrikeZoneFromPlate(W, H);
     lastZone = zone;
+
+    const expandedZone = {
+      x: zone.x - CHASE_MARGIN,
+      y: zone.y - CHASE_MARGIN,
+      w: zone.w + CHASE_MARGIN*2,
+      h: zone.h + CHASE_MARGIN*2,
+    };
+
     const aimPt = getAimPoint(zone);
+
+    // Aim penalty tracking (works for joystick/mouse/arrows)
+    const aimDelta = Math.hypot(aim.nx - lastAimNX, aim.ny - lastAimNY);
+    if (aimDelta < AIM_STILL_EPS) aimStillT += sdt;
+    else aimStillT = Math.max(0, aimStillT - sdt * 2.0);
+    lastAimNX = aim.nx;
+    lastAimNY = aim.ny;
+
+    const aimPenalty01 = clamp01((aimStillT - AIM_STILL_T_START) / Math.max(0.0001, (AIM_STILL_T_FULL - AIM_STILL_T_START)));
 
     // swing input + timers
     if (input.swing) startSwing();
@@ -1592,13 +1644,6 @@ document.addEventListener("visibilitychange", () => {
     }
 
     const swingActive = (player.swing || player.swingAge <= player.swingWindow + LATE_GRACE);
-
-    const expandedZone = {
-      x: zone.x - CHASE_MARGIN,
-      y: zone.y - CHASE_MARGIN,
-      w: zone.w + CHASE_MARGIN*2,
-      h: zone.h + CHASE_MARGIN*2,
-    };
 
     // skills
     if (input.skillV) useSkillV(zone);
@@ -1647,13 +1692,10 @@ document.addEventListener("visibilitychange", () => {
           else if (r < fastChance + heavyChance) kind = "heavy";
         }
 
-          spawnEnemy(W, H, zone, expandedZone, Math.random() < 0.5 ? "fast" : "normal");
-
-
-
+        spawnEnemy(W, H, zone, expandedZone, kind);
 
         if (level >= 7 && Math.random() < 0.10){
-          spawnEnemy(W, H, Math.random() < 0.5 ? "fast" : "normal");
+          spawnEnemy(W, H, zone, expandedZone, Math.random() < 0.5 ? "fast" : "normal");
         }
       }
     }
@@ -1668,11 +1710,11 @@ document.addEventListener("visibilitychange", () => {
 
         b.justHitT = Math.max(0, b.justHitT - sdt);
 
+
+        if (!b.crossedZone && circleRectHit(b.x, b.y, b.r, zone.x, zone.y, zone.w, zone.h)) b.crossedZone = true;
         if (b.pendingPlate) continue;
 
         b.wobPhase += sdt * (b.wobSpeed || 8);
-
-
 
         if (!b.retargeted && b.toPlateDist < 520){
           b.retargeted = true;
@@ -1687,10 +1729,10 @@ document.addEventListener("visibilitychange", () => {
 
         const dir = { x: dx/dist, y: dy/dist };
         const perp = { x: -dir.y, y: dir.x };
+
         const wave = b.zigzag ? triWave(b.wobPhase) : Math.sin(b.wobPhase);
         const wobAmp = (b.wobMag || 18) * (0.35 + 0.85 * clamp01(1 - (b.toPlateDist / 720)));
         const wob = wave * wobAmp;
-
 
         b.vx = dir.x * b.speed + perp.x * wob;
         b.vy = dir.y * b.speed + perp.y * wob;
@@ -1702,7 +1744,6 @@ document.addEventListener("visibilitychange", () => {
         const maxX = expandedZone.x + expandedZone.w - b.r;
         b.x = clamp(b.x, minX, maxX);
 
-
         if (b.y + b.r >= band.bot){
           const hittableNow = swingActive && !player.swingConsumed &&
             circleRectHit(b.x, b.y, b.r, expandedZone.x, expandedZone.y, expandedZone.w, expandedZone.h);
@@ -1712,7 +1753,12 @@ document.addEventListener("visibilitychange", () => {
             b.y = band.bot - b.r - PLATE_HOLD_EPS;
           } else {
             b.alive = false;
-            applyPlateDamage(1);
+            if (b.crossedZone){
+              applyPlateDamage(1);
+              spawnPopupStacked(b.x, band.y - 18, "STRIKE!", "strike");
+            } else {
+              spawnPopupStacked(b.x, band.y - 18, "BALL", "ball");
+            }
           }
         }
       }
@@ -1758,7 +1804,8 @@ document.addEventListener("visibilitychange", () => {
 
     // SWING contact (one hit per swing)
     if (swingActive && !player.swingConsumed){
-      const batR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
+      const baseBatR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
+      const batR = baseBatR * (1 - AIM_PENALTY_BAT_SHRINK * aimPenalty01);
 
       const perfectWindow = PERFECT_W + upgrades.perfectBonus;
       const goodWindow    = GOOD_W + upgrades.perfectBonus;
@@ -1769,8 +1816,8 @@ document.addEventListener("visibilitychange", () => {
         (player.swingAge <= goodWindow)    ? "good" :
         "normal";
 
-      const thrPerfect = OVERLAP_PERFECT;
-      const thrGood    = OVERLAP_GOOD;
+      const thrPerfect = lerp(OVERLAP_PERFECT, 0.98, aimPenalty01);
+      const thrGood    = lerp(OVERLAP_GOOD,    0.88, aimPenalty01);
 
       const pool = boss.alive ? bossPitches : balls;
 
@@ -1784,6 +1831,8 @@ document.addEventListener("visibilitychange", () => {
         if (!inHittable) continue;
 
         const d = Math.hypot(b.x - aimPt.x, b.y - aimPt.y);
+        constz = 0
+
         const overlapA = circleOverlapArea(b.r, batR, d);
         const batA = Math.PI * batR * batR;
         const frac = overlapA / (batA || 1);
@@ -1838,7 +1887,6 @@ document.addEventListener("visibilitychange", () => {
           }
         }
 
-        // Consume swing immediately (prevents “holding swing hits everything”)
         if (didAnyContact){
           player.swingConsumed = true;
           endSwingImmediately();
@@ -1860,7 +1908,7 @@ document.addEventListener("visibilitychange", () => {
 
         b.pendingPlate = false;
         b.alive = false;
-        applyPlateDamage(1);
+        if (b.crossedZone) applyPlateDamage(1);
       }
     } else {
       const bandRect = band;
@@ -1872,7 +1920,12 @@ document.addEventListener("visibilitychange", () => {
         p.alive = false;
 
         const hitsPlateLane = circleRectHit(p.x, p.y, p.r, bandRect.x, bandRect.y, bandRect.w, bandRect.h);
-        if (hitsPlateLane) applyPlateDamage(1);
+        if (hitsPlateLane && p.crossedZone){
+          applyPlateDamage(1);
+          spawnPopupStacked(p.x, band.y - 18, "STRIKE!", "strike");
+        } else if (hitsPlateLane && !p.crossedZone){
+          spawnPopupStacked(p.x, band.y - 18, "BALL", "ball");
+        }
       }
     }
 
@@ -1906,8 +1959,10 @@ document.addEventListener("visibilitychange", () => {
     const cdV = player.skillVCD > 0 ? player.skillVCD.toFixed(1) : "READY";
     const cdH = player.skillHCD > 0 ? player.skillHCD.toFixed(1) : "READY";
 
+    const aimPenTxt = (aimStillT > AIM_STILL_T_START) ? ` 🎯MOVE ${Math.round(aimPenalty01*100)}%` : "";
+
     topbar.textContent =
-      `Lv ${level} (${getTheme(level)}) • ${objTxt} • ${player.stance.toUpperCase()}\n` +
+      `Lv ${level} (${getTheme(level)}) • ${objTxt} • ${player.stance.toUpperCase()}${aimPenTxt}\n` +
       `Score ${score} • HP ${hp} • Combo ${combo} • x${mult} • ${shieldTxt}${slowTxt}${dblTxt}${magTxt}${apTxt}\n` +
       `VERT ${cdV} • HORZ ${cdH}`;
   }
@@ -1929,7 +1984,6 @@ document.addEventListener("visibilitychange", () => {
       (theme === "emoji" && IMG.bg2) ? IMG.bg2 :
       IMG.bg;
 
-
     if (bg){
       const ar = bg.width / bg.height;
       const tr = W / H;
@@ -1944,11 +1998,14 @@ document.addEventListener("visibilitychange", () => {
 
     const plate = getPlate(W, H);
     const band  = getContactBandFromPlate(W, H);
-    const zone  = getStrikeZoneFromPlayer(W, H, player.y, player.h);
+    const zone  = getStrikeZoneFromPlate(W, H);
     lastZone = zone;
 
     const aimPt = getAimPoint(zone);
-    const batR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
+
+    const aimPenalty01 = clamp01((aimStillT - AIM_STILL_T_START) / Math.max(0.0001, (AIM_STILL_T_FULL - AIM_STILL_T_START)));
+    const baseBatR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
+    const batR = baseBatR * (1 - AIM_PENALTY_BAT_SHRINK * aimPenalty01);
 
     // BIG boss HP bar (top)
     if (boss.alive){
@@ -1997,7 +2054,7 @@ document.addEventListener("visibilitychange", () => {
       ctx.restore();
     }
 
-    // Bat circle
+    // Bat circle (shows penalty)
     ctx.save();
     ctx.globalAlpha = 0.20;
     ctx.fillStyle = "rgba(0,0,0,0.60)";
@@ -2045,11 +2102,10 @@ document.addEventListener("visibilitychange", () => {
 
     // Boss
     if (boss.alive){
-        const enemyImg =
+      const bossImg =
         (theme === "subway" && IMG.enemy3) ? IMG.enemy3 :
         (theme === "emoji" && IMG.enemy2) ? IMG.enemy2 :
         IMG.ball;
-
 
       ctx.save();
       ctx.globalAlpha = 0.55;
@@ -2063,7 +2119,7 @@ document.addEventListener("visibilitychange", () => {
       ctx.shadowColor = "rgba(0,0,0,0.65)";
       ctx.shadowBlur = 14;
       ctx.shadowOffsetY = 6;
-      if (enemyImg) ctx.drawImage(enemyImg, boss.x - boss.r, boss.y - boss.r, boss.r*2, boss.r*2);
+      if (bossImg) ctx.drawImage(bossImg, boss.x - boss.r, boss.y - boss.r, boss.r*2, boss.r*2);
       else {
         ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.r, 0, Math.PI*2);
         ctx.fillStyle = "#ffcc33";
@@ -2113,18 +2169,14 @@ document.addEventListener("visibilitychange", () => {
       (theme === "emoji" && IMG.enemy2) ? IMG.enemy2 :
       IMG.ball;
 
-
     const pool = boss.alive ? bossPitches : balls;
 
     for (const b of pool){
       if (!b.alive) continue;
 
       const enemyImg = (b.kind === "sandwich" && IMG.enemy3) ? IMG.enemy3 : defaultEnemyImg;
-
-      const scale = (b.kind === "sandwich") ? 1.35 : 1.0;
+      const scale = (b.kind === "sandwich") ? 1.55 : 1.0;
       const size = b.r * 2 * scale;
-
-
 
       ctx.save();
       ctx.globalAlpha = 0.55;
@@ -2137,7 +2189,6 @@ document.addEventListener("visibilitychange", () => {
       ctx.save();
       ctx.shadowColor = "rgba(0,0,0,0.65)";
       ctx.shadowBlur = (b.kind === "sandwich") ? 18 : 10;
-
       ctx.shadowOffsetY = 4;
 
       if (enemyImg){
@@ -2150,11 +2201,10 @@ document.addEventListener("visibilitychange", () => {
           ctx.fill();
           ctx.restore();
         }
-
         ctx.drawImage(enemyImg, b.x - size/2, b.y - size/2, size, size);
+      } else {
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fillStyle = "#ff3b3b"; ctx.fill();
       }
-
-      else { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fillStyle = "#ff3b3b"; ctx.fill(); }
       ctx.restore();
 
       if (boss.alive && b.pitchId && b.labelT > 0){
@@ -2211,7 +2261,12 @@ document.addEventListener("visibilitychange", () => {
 
       const fontSize = p.kind === "perfect" ? 34 : p.kind === "good" ? 28 : 24;
       ctx.font = `950 ${Math.round(fontSize * bump)}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-      ctx.fillStyle = p.kind === "perfect" ? "#ffd54a" : p.kind === "good" ? "#7cf7ff" : "#ffffff";
+      ctx.fillStyle =
+        p.kind === "perfect" ? "#ffd54a" :
+        p.kind === "good" ? "#7cf7ff" :
+        p.kind === "ball" ? "#7cf7ff" :
+        p.kind === "strike" ? "#ff6b6b" :
+        "#ffffff";
 
       const safeX = clamp(p.x, 50, W - 50);
       ctx.fillText(p.text, safeX, p.y);
