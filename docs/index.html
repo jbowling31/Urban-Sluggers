@@ -7,7 +7,18 @@
 <title>Urban Slugger Prototype</title>
 <style>
   html, body { margin:0; height:100%; background:#0b1020; overflow:hidden; }
-  #wrap { position:relative; width:100%; height:100%; touch-action:none; }
+  #wrap { position:relative; width:100%; height:100%; touch-action:none; overflow:hidden; background:#0b1020; }
+  /* Fullscreen iPad-style framing (cover + crop) */
+  #stage{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    transform:none;
+    transform-origin: 50% 50%;
+  }
+  #stage canvas{ width:100%; height:100%; }
+
   canvas { display:block; width:100%; height:100%; }
 
   .hud{
@@ -170,7 +181,54 @@
     white-space:nowrap;
   }
 
-  /* Upgrade modal ON TOP of everything */
+  
+  /* Main menu */
+  .menuModal{
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0,0,0,0.55);
+    z-index: 30;
+  }
+  .menuCard{
+    width: min(520px, 92vw);
+    border-radius: 18px;
+    padding: 18px 18px 16px;
+    background: rgba(15,18,32,0.92);
+    border: 2px solid rgba(255,255,255,0.16);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.55);
+    text-align: center;
+  }
+  .menuTitle{
+    font: 900 34px system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    letter-spacing: 0.5px;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .menuSub{
+    font: 650 14px system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    color: rgba(255,255,255,0.78);
+    margin-bottom: 16px;
+  }
+  .menuBtns{
+    display: grid;
+    gap: 12px;
+  }
+  .menuBtns .btn{
+    padding: 16px 14px;
+    border-radius: 14px;
+    font: 900 18px system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  }
+  .menuHint{
+    margin-top: 14px;
+    font: 650 12px system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    color: rgba(255,255,255,0.66);
+  }
+
+/* Upgrade modal ON TOP of everything */
   .modal{
     position:absolute; inset:0;
     display:flex; align-items:center; justify-content:center;
@@ -234,12 +292,23 @@
     }
     canvas, .hud { display: none; }
   }
+  [hidden] { display: none !important; }
+.menuModal, .menuModal * { pointer-events:auto; touch-action:manipulation; }
+.menuCard, .menuCard * { pointer-events:auto; }
+#btnMenu{
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 9999;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
 </style>
 <link rel="icon" href="data:,">
 </head>
 
-<body>
-<div id="wrap">
+<body><div id="wrap"><div id="stage">
   <canvas id="c"></canvas>
 
   <div class="hud">
@@ -252,6 +321,20 @@ R restart
     </div>
 
     <div class="restartBtn" id="btnRestart">RESTART</div>
+    <div class="btn" id="btnMenu">MENU</div>
+
+    <div class="menuModal" id="menuModal">
+      <div class="menuCard">
+        <div class="menuTitle">Urban Sluggers</div>
+        <div class="menuSub">Choose a mode</div>
+        <div class="menuBtns">
+          <div class="btn wide" id="btnDerby">HOME RUN DERBY</div>
+          <div class="btn wide" id="btnStory">STORY</div>
+        </div>
+        <div class="menuHint">Tap/click a mode • Esc to return to Menu</div>
+      </div>
+    </div>
+
 
     <div class="modal" id="upgradeModal" hidden>
       <div class="panel">
@@ -283,6 +366,7 @@ R restart
     </div>
   </div>
 </div>
+</div>
 
 <script>
 (() => {
@@ -311,13 +395,72 @@ R restart
 
   function resize() {
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const rect = canvas.getBoundingClientRect();
-    canvas.width  = Math.floor(rect.width * dpr);
-    canvas.height = Math.floor(rect.height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const wrap = document.getElementById("wrap");
+    const r = wrap.getBoundingClientRect();
+
+    // True fullscreen canvas. World framing is handled by the camera (cover + crop).
+    canvas.style.width  = r.width + "px";
+    canvas.style.height = r.height + "px";
+    canvas.width  = Math.floor(r.width * dpr);
+    canvas.height = Math.floor(r.height * dpr);
+
+    CAM.dpr = dpr;
+    updateCamera(canvas);
   }
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
+// ===== Camera (fixed world, fullscreen cover) =====
+const DESIGN_W = 1366;
+const DESIGN_H = 1024;
+
+// bias: 0..1.  X=0.5 centers; Y=1.0 keeps bottom visible (plate/batter safe)
+const CAM_BIAS_X = 0.5;
+const CAM_BIAS_Y = 1.0;
+
+const CAM = { scale: 1, offX: 0, offY: 0, screenW: 0, screenH: 0, dpr: 1 };
+
+// Global derby hit zone (used by physics step in both Story/Derby)
+var derbyHitZone = { x:0, y:0, w:0, h:0 };
+
+function updateCamera(canvas){
+  const dpr = CAM.dpr || (window.devicePixelRatio || 1);
+  const screenW = canvas.width / dpr;   // CSS px
+  const screenH = canvas.height / dpr;
+
+  const scale = Math.max(screenW / DESIGN_W, screenH / DESIGN_H); // COVER
+  const offX = (screenW - DESIGN_W * scale) * CAM_BIAS_X;
+  const offY = (screenH - DESIGN_H * scale) * CAM_BIAS_Y;
+
+  CAM.scale = scale;
+  CAM.offX = offX;
+  CAM.offY = offY;
+  CAM.screenW = screenW;
+  CAM.screenH = screenH;
+}
+
+function applyCamera(ctx){
+  // IMPORTANT: include DPR so transforms work in device pixels
+  const dpr = CAM.dpr || 1;
+  ctx.setTransform(CAM.scale * dpr, 0, 0, CAM.scale * dpr, CAM.offX * dpr, CAM.offY * dpr);
+}
+
+function screenToWorld(clientX, clientY, canvas){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = CAM.dpr || (window.devicePixelRatio || 1);
+
+  // client -> canvas px
+  const px = (clientX - rect.left) * (canvas.width / rect.width);
+  const py = (clientY - rect.top)  * (canvas.height / rect.height);
+
+  // canvas px -> CSS px -> world
+  const cx = px / dpr;
+  const cy = py / dpr;
+
+  return {
+    x: (cx - CAM.offX) / CAM.scale,
+    y: (cy - CAM.offY) / CAM.scale
+  };
+}
 
   // Assets
   const IMG = {};
@@ -342,11 +485,46 @@ R restart
     loadImg("explosion", "assets/explosion.png"),
     loadImg("skillV", "assets/vertical_slash_skill.png"),
     loadImg("skillH", "assets/horizontal_slash_skill.png"),
+
+    loadImg("derbyBg", "assets/homerun_derby_background.png"),
+    loadImg("pitcherWindup", "assets/pitcher_banana_windup.png"),
+    loadImg("pitcherPitch", "assets/pitcher_banana_pitch.png"),
   ];
 
   // Config
 const STRIKE_ZONE_VISIBLE = true;
 const PLATE_Y_FRAC = 0.90;
+
+  // Derby camera / scaling (visual only; Story remains unchanged)
+  const DERBY_VIEW_SCALE = 1.00;   // match Story pixel-for-pixel   // zoom-in factor for Derby world
+  const DERBY_ZONE_SCALE = 1.00;   // 1.00 = match Story pixel-for-pixel (bigger = bigger strike zone)
+  const DERBY_BATTER_X_OFFSET = 0; // + = move batter right, - = left
+  const DERBY_BATTER_Y_OFFSET = 0; // + = move batter down, - = up
+
+  // Derby pitcher tuning (also affects pitch travel time since pitches start at release point)
+  const DERBY_PITCHER_SIZE_SCALE = 0.90; // smaller = farther feel + slightly more reaction clarity
+  const DERBY_PITCHER_BACK_MULT  = 1.35; // higher = farther back (moves pitcher up)
+  const DERBY_PITCHER_X_OFFSET   = 0;    // pixels
+  const DERBY_PITCHER_Y_OFFSET   = 0;    // pixels
+
+  function scaleRectAroundCenter(r, s){
+    const cx = r.x + r.w/2;
+    const cy = r.y + r.h/2;
+    return { x: cx - (r.w*s)/2, y: cy - (r.h*s)/2, w: r.w*s, h: r.h*s };
+  }
+
+  function derbyScreenToWorld(sx, sy, W, H){
+    // convert screen-space mouse coords to world coords under derby zoom
+    return {
+      x: (sx - W/2) / DERBY_VIEW_SCALE + W/2,
+      y: (sy - H/2) / DERBY_VIEW_SCALE + H/2,
+    };
+  }
+
+  function easeOutCubic(t){
+    t = clamp01(t);
+    return 1 - Math.pow(1 - t, 3);
+  }
 
 const PLATE_LANE_W = 132;   // contact band width (was STRIKE_W_BAND)
 const BAND_H = 24;
@@ -367,12 +545,21 @@ const HP_MAX   = 10;
   const BAT_R_BASE = 22;
   const BAT_R_PER_UPG = 0.55;
 
-  const PERFECT_W = 0.055;
+  const PERFECT_W = 0.12;
   const GOOD_W    = 0.14;
   const LATE_GRACE = 0.06;
 
+  // Derby timing/overlap windows are referenced by Story grading too.
+  // Keep these globals defined so Story never crashes even if Derby hasn't been entered yet.
+  const DERBY_PERFECT_W = 0.11;
+  const DERBY_GOOD_W    = 0.20;
+  const DERBY_MIN_CONTACT_FRAC = 0.28;
+  const DERBY_OVERLAP_PERFECT  = 0.42;
+  const DERBY_OVERLAP_GOOD     = 0.42;
+
+
   // overlap relative to BAT area
-  const OVERLAP_PERFECT = 0.92;
+  const OVERLAP_PERFECT = 0.86;
   const OVERLAP_GOOD    = 0.75;
 
   const POPUP_LIFE = 0.62;
@@ -530,8 +717,59 @@ function getStrikeZoneFromPlate(W, H){
   // Input
   const input = { swing:false, skillV:false, skillH:false };
 
+  // Round countdown (shows 3..2..1..GO! and blocks gameplay briefly).
+  const countdown = { active:false, t:0 };
+  function startCountdown(){
+    countdown.active = true;
+    countdown.t = 0;
+  }
+  function stepCountdown(dt){
+    if (!countdown.active) return false;
+    countdown.t += dt;
+    if (countdown.t >= 3.65) countdown.active = false;
+    return countdown.active;
+  }
+  function countdownLabel(){
+    if (!countdown.active) return "";
+    if (countdown.t < 1) return "3";
+    if (countdown.t < 2) return "2";
+    if (countdown.t < 3) return "1";
+    return "GO!";
+  }
+  function drawCountdownOverlay(ctx, W, H){
+    if (!countdown.active) return;
+    const label = countdownLabel();
+    // subtle dark veil
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = (label === "GO!") ? "900 96px system-ui, -apple-system, Segoe UI, Roboto, Arial"
+                                 : "900 120px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText(label, W/2, H/2);
+    ctx.restore();
+  }
+
   function bindTap(el, fn){
     el.addEventListener("pointerdown", (e)=>{ e.preventDefault(); fn(); });
+  }
+
+  // Menu buttons: work reliably for both mouse + touch (without double-firing).
+  function bindMenuSelect(el, fn){
+    let lastFire = 0;
+    const fire = (e) => {
+      const now = performance.now();
+      if (now - lastFire < 250) return;
+      lastFire = now;
+      if (e && e.preventDefault) e.preventDefault();
+      fn();
+    };
+    el.addEventListener("pointerup", fire);
+    el.addEventListener("click", fire);
   }
 
   function bindPressOnce(el, fn){
@@ -549,7 +787,132 @@ function getStrikeZoneFromPlate(W, H){
   bindTap(document.getElementById("btnLefty"),  ()=> setStance("lefty"));
 
   const restartBtn = document.getElementById("btnRestart");
-  bindTap(restartBtn, () => resetRun());
+  bindTap(restartBtn, () => handleRestartPress());
+
+  // Mode (menu / story / derby)
+  const menuModal = document.getElementById("menuModal");
+  const btnStory = document.getElementById("btnStory");
+  const btnDerby = document.getElementById("btnDerby");
+  const controlsEl = document.querySelector(".controls");
+  const hintEl = document.getElementById("hint");
+const btnMenu = document.getElementById("btnMenu");
+if (btnMenu){
+  btnMenu.addEventListener("pointerup", (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    showMenu();
+  }, { passive:false });
+}
+
+  let gameMode = "menu"; // default
+
+  function setMode(mode){
+    gameMode = mode;
+    updateModeUI();
+  }
+
+  function updateModeUI(){
+    const inMenu = gameMode === "menu";
+    menuModal.hidden = !inMenu;
+    if (controlsEl) controlsEl.style.display = inMenu ? "none" : "flex";
+    if (hintEl) hintEl.style.display = inMenu ? "none" : "";
+    if (topbar) topbar.style.display = inMenu ? "none" : "";
+    restartBtn.style.display = inMenu ? "none" : "block";
+  }
+
+  function showMenu(){
+    setMode("menu");
+  }
+
+  function startStory(){
+    resetRun();
+    setMode("story");
+    startCountdown();
+  }
+
+  // Home Run Derby state
+  const derbyPitches = [];
+  const derbyHits = [];
+
+  const derby = {
+    active: false,
+    over: false,
+
+    // Count-based "at bat"
+    strikes: 0,
+    balls: 0,
+
+    // Strikes are HP in Derby (3-and-out)
+    hp: 3,
+
+    // Score = Home Runs only
+    homeruns: 0,
+
+    pitches: 0,
+    maxPitches: Infinity,
+
+    // Pitcher pose
+    pose: "windup",
+    poseT: 0,
+    windupDur: 0.55,
+    releaseDur: 0.12,
+    followDur: 0.25,
+
+    // Perfect-hit feel
+    hitStop: 0,
+    slowmoT: 0,
+  };
+
+  function resetDerby(){
+    derby.active = true;
+    derby.over = false;
+    derby.strikes = 0;
+    derby.balls = 0;
+    derby.hp = 3;
+    derby.homeruns = 0;
+    derby.pitches = 0;
+    derby.pose = "windup";
+    derby.poseT = 0;
+
+
+    derby.hitStop = 0;
+    derby.slowmoT = 0;
+    derbyPitches.length = 0;
+    derbyHits.length = 0;
+
+    popups.length = 0;
+    explosions.length = 0;
+
+    input.swing = false;
+    input.skillV = false;
+    input.skillH = false;
+
+    player.swing = false;
+    player.swingTimer = 0;
+    player.swingAge = 999;
+    player.swingPoseTimer = 0;
+    player.swingCD = 0;
+    player.swingConsumed = false;
+    lastAimInit = false;
+    aimStillT = 0;
+  }
+
+  function startDerby(){
+    resetRun(); // keeps player tuning consistent
+    resetDerby();
+    setMode("derby");
+    startCountdown();
+  }
+
+  function handleRestartPress(){
+    if (gameMode === "story") { resetRun(); startCountdown(); return; }
+    if (gameMode === "derby") { resetDerby(); startCountdown(); return; }
+    // menu => no-op
+  }
+
+  bindMenuSelect(btnStory, startStory);
+  bindMenuSelect(btnDerby, startDerby);
+
 
   // Aim spot
   const aim = { nx: 0, ny: 0 };
@@ -641,18 +1004,26 @@ function getStrikeZoneFromPlate(W, H){
   joyEl.addEventListener("lostpointercapture", () => { joyActive = false; joyPid = -1; });
 
   // PC mouse aim + click swing
-  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
   canvas.addEventListener("pointermove", (e) => {
     if (e.pointerType !== "mouse") return;
+    if (gameMode === "menu") return;
     if (upgradeOpen) return;
 
-    const rect = canvas.getBoundingClientRect();
-    clampAimToExpandedZone(lastZone, e.clientX - rect.left, e.clientY - rect.top);
-  });
+    const p = screenToWorld(e.clientX, e.clientY, canvas);
+    let mx = p.x;
+    let my = p.y;
+
+    if (gameMode === "derby"){
+      const wpt = derbyScreenToWorld(mx, my, DESIGN_W, DESIGN_H);
+      mx = wpt.x; my = wpt.y;
+    }
+      clampAimToExpandedZone(lastZone, mx, my);
+});
 
   canvas.addEventListener("pointerdown", (e) => {
     if (e.pointerType !== "mouse") return;
+    if (gameMode === "menu") return;
     if (upgradeOpen) return;
     if (e.button === 0) input.swing = true;
   });
@@ -846,6 +1217,7 @@ function getStrikeZoneFromPlate(W, H){
 
     closeUpgradeModal();
     startLevel(pendingNextLevel);
+    startCountdown();
     pendingNextLevel = null;
   }
 
@@ -897,7 +1269,7 @@ function getStrikeZoneFromPlate(W, H){
 
   // Swing
   function startSwing(){
-    if (player.swingCD > 0) return;
+    // No cooldown: allow spam swings, but still press-to-swing (no hold)
     swingToken++;
     popupStackI = 0;
 
@@ -907,7 +1279,7 @@ function getStrikeZoneFromPlate(W, H){
     player.swingTimer = player.swingWindow;
     player.swingAge = 0;
     player.swingPoseTimer = player.swingPoseDur;
-    player.swingCD = player.swingCDDur;
+    // player.swingCD intentionally unused (no cooldown)
   }
 
   function applyPlateDamage(amount){
@@ -1099,8 +1471,11 @@ function getStrikeZoneFromPlate(W, H){
       toPlateDist: 9999,
       lastHitSwingToken: -1,
       pendingPlate: false,
+
+      playerSwung: false,
       justHitT: 0,
     crossedZone: false,
+      swungAt: false,
     });
   }
 
@@ -1217,6 +1592,7 @@ function getStrikeZoneFromPlate(W, H){
       pendingPlate: false,
       labelT: 0.75,
       crossedZone: false,
+      swungAt: false,
     });
   }
 
@@ -1303,10 +1679,10 @@ function getStrikeZoneFromPlate(W, H){
 
 
       if (!p.crossedZone && circleRectHit(p.x, p.y, p.r, zone.x, zone.y, zone.w, zone.h)) p.crossedZone = true;
-      applyBossPitchMovement(p, dt);
+      applyBossPitchMovement(p, moveDt);
 
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
+      p.x += p.vx * moveDt;
+      p.y += p.vy * moveDt;
 
       p.toPlateDist = Math.hypot(tx - p.x, ty - p.y);
 
@@ -1314,7 +1690,7 @@ function getStrikeZoneFromPlate(W, H){
 
       if (p.y + p.r >= band.bot){
         const hittableNow = swingActive && !player.swingConsumed &&
-          circleRectHit(p.x, p.y, p.r, expandedZone.x, expandedZone.y, expandedZone.w, expandedZone.h);
+          circleRectHit(p.x, p.y, p.r, derbyHitZone.x, derbyHitZone.y, derbyHitZone.w, derbyHitZone.h);
 
         if (hittableNow){
           p.pendingPlate = true;
@@ -1355,8 +1731,658 @@ function getStrikeZoneFromPlate(W, H){
     for (let i = returns.length - 1; i >= 0; i--) if (!returns[i].alive) returns.splice(i, 1);
   }
 
-  // Skills
+  
+  // Home Run Derby helpers
+  function drawImageCover(img, W, H){
+    const ar = img.width / img.height;
+    const tr = W / H;
+    let dw, dh, dx, dy;
+    if (ar > tr){ dh = H; dw = H * ar; dx = (W - dw)/2; dy = 0; }
+    else { dw = W; dh = W / ar; dx = 0; dy = (H - dh)/2; }
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
+  function getPitcherRect(W, H){
+    // Derby pitcher placement: anchored to strike zone but with tunable "back" + size.
+    const z = lastZone || getStrikeZoneFromPlate(W, H);
+
+    const base = Math.min(320, Math.max(200, W * 0.24));
+    const w = base * DERBY_PITCHER_SIZE_SCALE;
+    const h = w;
+
+    const cx = (z.x + z.w/2) + DERBY_PITCHER_X_OFFSET;
+    const back = (0.95 * DERBY_PITCHER_BACK_MULT);
+    const y = clamp((z.y - h * back) + DERBY_PITCHER_Y_OFFSET, 10, H - h - 10);
+    const x = clamp(cx - w/2, 10, W - w - 10);
+    return { x, y, w, h };
+  }
+
+  function getPitcherReleasePoint(W, H){
+    const pr = getPitcherRect(W, H);
+    return { x: pr.x + pr.w * 0.74, y: pr.y + pr.h * 0.52 };
+  }
+
+  function spawnDerbyPitch(W, H, zone, band){
+    const t = difficultyT();
+
+    const pt = pickBossPitchType();
+    const r0 = 6 + Math.random() * 2;   // small (far)
+    const r1 = 18 + Math.random() * 4;  // big (near)
+
+    const baseSpeed = lerp(520, 720, t);
+    const spd = baseSpeed * pt.speedMul + Math.random() * 30;
+
+    const ballChance = lerp(0.14, 0.22, t);
+    const isBallPitch = Math.random() < ballChance;
+
+    const plate = getPlate(W, H);
+    const from = getPitcherReleasePoint(W, H);
+
+    // Two-phase: pitcher -> (zone level) -> plate (option C)
+    const zoneY  = zone.y + zone.h/2;
+    const plateY = band.y + band.h/2;
+
+    const strikeX = zone.x + 14 + Math.random() * (zone.w - 28);
+    const ballX = plate.x + (Math.random() < 0.5 ? -1 : 1) * (zone.w * 0.60 + 40 + Math.random() * 110);
+    const targetX = isBallPitch ? ballX : strikeX;
+
+    const dir0 = norm2(targetX - from.x, zoneY - from.y);
+    const breakSign = (Math.random() < 0.5) ? -1 : 1;
+
+    derbyPitches.push({
+      x: from.x,
+      y: from.y,
+
+      // radius scaling (far -> near)
+      r: r0,
+      r0,
+      r1,
+
+      alive: true,
+      speed: spd,
+      vx: dir0.x * spd,
+      vy: dir0.y * spd,
+
+      // phase + targets
+      targetX,
+      zoneY,
+      plateY,
+      passedZoneY: false,
+
+      // used for size lerp
+      startX: from.x,
+      startY: from.y,
+
+      startDist: Math.hypot((band.x + band.w/2) - from.x, (band.y + band.h/2) - from.y),
+
+      pitchId: pt.id,
+      curveK: pt.curve * breakSign,
+      sinkK: pt.sink,
+      lateBreak: pt.lateBreak,
+
+      phase: Math.random() * Math.PI * 2,
+      isBallPitch,
+      toPlateDist: 9999,
+      lastHitSwingToken: -1,
+      pendingPlate: false,
+
+      // strike/ball classification: did it ever enter the strike box?
+      crossedZone: false,
+      swungAt: false,
+    });
+
+    derby.pitches += 1;
+  }
+
+  function createDerbyBattedBall(fromX, fromY, grade, aimPt, zone, timing01, W, H){
+    const timing = clamp((0.5 - timing01) * 2, -1, 1);
+
+    const zoneCx = zone.x + zone.w/2;
+    const zoneCy = zone.y + zone.h/2;
+    const ax = (aimPt.x - zoneCx) / Math.max(1, zone.w/2);
+    const ay = (aimPt.y - zoneCy) / Math.max(1, zone.h/2);
+
+    const pullX = player.facing * timing * 280;
+    const aimX = clamp(ax, -1, 1) * 220;
+    const aimY = clamp(ay, -1, 1) * 60;
+
+    const isHR = grade === "perfect";
+
+    const tx = (isHR ? (W * 0.62) : (W * 0.58)) + pullX + aimX;
+    const ty = (isHR ? (H * 0.08) : (H * 0.22)) + aimY;
+
+    derbyHits.push({
+      alive: true,
+      grade,
+      t: 0,
+      life: (grade === "perfect") ? 1.55 : 1.25,
+      arcMag: (grade === "perfect") ? 320 : 220,
+      sx: fromX,
+      sy: fromY,
+      tx,
+      ty,
+      x: fromX,
+      y: fromY,
+      r: 14,
+    });
+  }
+
+  function updateDerbyHits(dt){
+    for (const h of derbyHits){
+      if (!h.alive) continue;
+      h.t += dt;
+      const u = clamp01(h.t / h.life);
+      const arc = Math.sin(u * Math.PI) * (h.arcMag || 220);
+      h.x = lerp(h.sx, h.tx, u);
+      h.y = lerp(h.sy, h.ty, u) - arc;
+      h.r = lerp(14, 7, u);
+
+      if (u >= 1) h.alive = false;
+    }
+    for (let i = derbyHits.length - 1; i >= 0; i--) if (!derbyHits[i].alive) derbyHits.splice(i, 1);
+  }
+
+  function applyDerbyPitchResult(p, band){
+    const hitsPlateLane = circleRectHit(p.x, p.y, p.r, band.x, band.y, band.w, band.h);
+    if (!hitsPlateLane) return;
+
+    // Strike if it crossed the zone OR you swung (even at a ball) and missed.
+    const isStrike = !!p.crossedZone || !!p.swungAt;
+
+    if (isStrike){
+      derby.strikes += 1;
+      derby.hp = Math.max(0, derby.hp - 1);
+
+      spawnPopupStacked(p.x, band.y - 18, "STRIKE!", "strike");
+
+      if (derby.strikes >= 3 || derby.hp <= 0) derby.over = true;
+    } else {
+      derby.balls += 1;
+      spawnPopupStacked(p.x, band.y - 18, "BALL", "ball");
+    }
+  }
+
+  function updateDerbyHUD(){
+    topbar.textContent =
+      `HOME RUN DERBY • ${player.stance.toUpperCase()}\n` +
+      `HR ${derby.homeruns} • Pitches ${derby.pitches}
+` +
+      `Strikes ${derby.strikes}/3 • Balls ${derby.balls}`;
+  }
+// Derby aim tracking (needed by stepDerby)
+let lastAimPt = { x: 0, y: 0 };
+let lastAimInit = false;
+
+  function stepDerby(dt, W, H){
+    if (!derby.active) resetDerby();
+    if (upgradeOpen) return;
+
+    // base timers / effects
+    if (shakeT > 0){
+      shakeT = Math.max(0, shakeT - dt);
+      if (shakeT <= 0){ shakeT = 0; shakeMag = 0; }
+    }
+
+    // Perfect-hit hit-stop (freeze frame)
+    if (derby.hitStop > 0){
+      derby.hitStop = Math.max(0, derby.hitStop - dt);
+      return;
+    }
+
+    if (derby.slowmoT > 0) derby.slowmoT = Math.max(0, derby.slowmoT - dt);
+    const moveDt = dt * ((derby.slowmoT > 0) ? 0.55 : 1.0);
+
+    const sdt = dt; // swing math must match Story
+
+// Update popups (shared)
+    for (const p of popups){
+      p.t += moveDt;
+    }
+    for (let i = popups.length - 1; i >= 0; i--) if (popups[i].t >= popups[i].life) popups.splice(i, 1);
+
+    const plate = getPlate(W, H);
+    const band  = getContactBandFromPlate(W, H);
+
+    // Anchor batter to plate in Derby (consistent with Story)
+    const bandCx = band.x + band.w / 2;
+    const playerCenterX = bandCx + (player.stance === "righty" ? -STANCE_OFFSET : STANCE_OFFSET) + DERBY_BATTER_X_OFFSET;
+    player.x = playerCenterX - player.w/2;
+    player.y = clamp((plate.y - player.h + 14) + DERBY_BATTER_Y_OFFSET, 0, H - player.h - 10);
+    let zone = getStrikeZoneFromPlate(W, H);
+    lastZone = zone;
+
+    const expandedZone = {
+      x: zone.x - CHASE_MARGIN,
+      y: zone.y - CHASE_MARGIN,
+      w: zone.w + CHASE_MARGIN*2,
+      h: zone.h + CHASE_MARGIN*2,
+    };
+
+    // Derby contact area: tight to the strike zone so you can't "hit anything anywhere"
+    derbyHitZone = { x: zone.x - 30, y: zone.y - 30, w: zone.w + 60, h: zone.h + 60 };
+
+
+    // Derby grading tuning (kept separate from Story so Story stays untouched)
+    // (uses global DERBY_* tuning constants)
+    const aimPt = getAimPoint(zone);
+    const aimDx = aimPt.x - lastAimPt.x;
+    const aimDy = aimPt.y - lastAimPt.y;
+    if (Math.hypot(aimDx, aimDy) <= AIM_STILL_EPS * Math.max(W, H)){
+      aimStillT = Math.min(AIM_STILL_T_FULL + 1, aimStillT + dt);
+    } else {
+      aimStillT = 0;
+      lastAimPt.x = aimPt.x;
+      lastAimPt.y = aimPt.y;
+    }
+    const aimPenalty01 = clamp01((aimStillT - AIM_STILL_T_START) / Math.max(0.0001, (AIM_STILL_T_FULL - AIM_STILL_T_START)));
+    const baseBatR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
+    const batR = baseBatR * (1 - AIM_PENALTY_BAT_SHRINK * aimPenalty01);
+
+// swing input + timers (match Story)
+// - press to swing (no hold), spam allowed
+if (input.swing){
+  startSwing();
+
+  // Mark a swing attempt so a "ball" becomes a strike if you whiff.
+  // (Only if the pitch is actually in/near the strike zone area.)
+  const attempt = { x: zone.x - 30, y: zone.y - 30, w: zone.w + 60, h: zone.h + 60 };
+  for (const p of derbyPitches){
+    if (!p.alive) continue;
+    if (circleRectHit(p.x, p.y, p.r, attempt.x, attempt.y, attempt.w, attempt.h)){
+      p.swungAt = true;
+    }
+  }
+}
+input.swing = false;
+
+    if (player.swing){
+      player.swingTimer = Math.max(0, player.swingTimer - sdt);
+      player.swingAge += sdt;
+      player.swingPoseTimer = Math.max(0, player.swingPoseTimer - sdt);
+      if (player.swingTimer <= 0) player.swing = false;
+    } else {
+      player.swingAge = Math.min(999, player.swingAge + sdt);
+      player.swingPoseTimer = Math.max(0, player.swingPoseTimer - sdt);
+    }
+
+    const swingActive = (player.swing || player.swingAge <= player.swingWindow + LATE_GRACE);
+
+    // Pitcher pose / pitch spawn
+    if (!derby.over){
+      derby.poseT += dt;
+      if (derby.pose === "windup" && derby.poseT >= derby.windupDur){
+        derby.pose = "release";
+        derby.poseT = 0;
+        if (derbyPitches.length === 0) spawnDerbyPitch(W, H, zone, band);
+      } else if (derby.pose === "release" && derby.poseT >= derby.releaseDur){
+        derby.pose = "follow";
+        derby.poseT = 0;
+      } else if (derby.pose === "follow" && derby.poseT >= derby.followDur){
+        derby.pose = "windup";
+        derby.poseT = 0;
+      }
+    }
+
+    // Update pitches
+    const tx = band.x + band.w/2;
+    const ty = band.y + band.h/2;
+
+    for (const p of derbyPitches){
+      if (!p.alive) continue;
+
+      if (!p.crossedZone && circleRectHit(p.x, p.y, p.r, zone.x, zone.y, zone.w, zone.h)) p.crossedZone = true;
+
+      // phase switch at strike-zone level: pitcher -> zoneY -> plate
+      if (!p.passedZoneY && p.y >= p.zoneY){
+        p.passedZoneY = true;
+        const dir1 = norm2(p.targetX - p.x, ty - p.y);
+        p.vx = dir1.x * p.speed;
+        p.vy = dir1.y * p.speed;
+      }
+
+      applyBossPitchMovement(p, moveDt);
+
+      p.x += p.vx * moveDt;
+      p.y += p.vy * moveDt;
+
+      // radius grows as it approaches the plate
+      const progY = clamp01((p.y - p.startY) / Math.max(1, (p.plateY - p.startY)));
+      p.r = lerp(p.r0, p.r1, easeOutCubic(progY));
+
+      p.toPlateDist = Math.hypot(tx - p.x, ty - p.y);
+      if (p.startDist){
+        const prog = clamp01(1 - (p.toPlateDist / Math.max(0.0001, p.startDist)));
+        p.r = lerp(p.r0 ?? p.r, p.r1 ?? p.r, easeOutCubic(prog));
+      }
+
+      if (p.pendingPlate) continue;
+
+      if (p.y + p.r >= band.bot){
+        const hittableNow = swingActive && !player.swingConsumed &&
+          circleRectHit(p.x, p.y, p.r, derbyHitZone.x, derbyHitZone.y, derbyHitZone.w, derbyHitZone.h);
+
+        if (hittableNow){
+          p.pendingPlate = true;
+          p.y = band.bot - p.r - PLATE_HOLD_EPS;
+          continue;
+        }
+
+        p.alive = false;
+        applyDerbyPitchResult(p, band);
+      }
+    }
+
+    // Swing contact (match Story: one hit per swing, late grace allowed)
+    if (swingActive && !player.swingConsumed){
+      const baseBatR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
+      const batR = baseBatR * (1 - AIM_PENALTY_BAT_SHRINK * aimPenalty01);
+
+      const perfectWindow = DERBY_PERFECT_W;
+      const goodWindow    = DERBY_GOOD_W;
+
+      const timing01 = clamp01(player.swingAge / Math.max(0.0001, player.swingWindow));
+      const timeGrade =
+        (player.swingAge <= perfectWindow) ? "perfect" :
+        (player.swingAge <= goodWindow)    ? "good" :
+        "normal";
+
+      const thrPerfect = lerp(DERBY_OVERLAP_PERFECT, 0.64, aimPenalty01);
+      const thrGood    = lerp(DERBY_OVERLAP_GOOD,    0.62, aimPenalty01);
+
+      let didAnyContact = false;
+
+      for (const b of derbyPitches){
+        if (!b.alive) continue;
+        if (b.lastHitSwingToken === swingToken) continue;
+
+        const inHittable = circleRectHit(b.x, b.y, b.r, derbyHitZone.x, derbyHitZone.y, derbyHitZone.w, derbyHitZone.h);
+        if (!inHittable) continue;
+
+        const d = Math.hypot(b.x - aimPt.x, b.y - aimPt.y);
+        const overlapA = circleOverlapArea(b.r, batR, d);
+        if (overlapA <= 0) continue;
+
+        const ballA = Math.PI * b.r * b.r;
+        const fracBall = overlapA / Math.max(1e-6, ballA);
+
+        // Require meaningful overlap to count as a hit (prevents "spam swing hits everything")
+        if (fracBall < DERBY_MIN_CONTACT_FRAC) continue;
+
+        const overlapGrade =
+          (fracBall >= thrPerfect) ? "perfect" :
+          (fracBall >= thrGood)    ? "good" :
+          "normal";
+
+        // Final grade (more forgiving than needing both "perfect"):
+        // - perfect: strong overlap + near-perfect timing OR perfect timing + at least good overlap
+        // - good: both timing and overlap are at least "good"
+        let grade = "normal";
+        if (
+          (timeGrade === "perfect" && (overlapGrade === "perfect" || overlapGrade === "good")) ||
+          (overlapGrade === "perfect" && (timeGrade === "perfect" || timeGrade === "good"))
+        ){
+          grade = "perfect";
+        } else if (timeGrade !== "normal" && overlapGrade !== "normal"){
+          grade = "good";
+        }
+        b.lastHitSwingToken = swingToken;
+        b.pendingPlate = false;
+
+        didAnyContact = true;
+        b.alive = false;
+        // Visualize the contact (perfect flies farther)
+        createDerbyBattedBall(b.x, b.y, grade, aimPt, zone, timing01, W, H);
+
+        // Scoring: ONLY perfect hits are Home Runs
+        if (grade === "perfect"){
+          derby.homeruns += 1;
+
+          spawnPopupStacked(aimPt.x, aimPt.y - 26, "BOOOM!", "perfect");
+          spawnPopupStacked(aimPt.x, aimPt.y - 2, "HOMERUN!", "perfect");
+
+          // quick punch + slow-down feel
+          derby.hitStop = Math.max(derby.hitStop, 0.06);
+          derby.slowmoT = Math.max(derby.slowmoT, 0.25);
+
+          shakeMag = Math.max(shakeMag, 16);
+          shakeT = Math.max(shakeT, 0.28);
+        } else if (grade === "good"){
+          spawnPopupStacked(aimPt.x, aimPt.y - 22, "HIT", "good");
+        } else {
+          spawnPopupStacked(aimPt.x, aimPt.y - 22, "HIT", "normal");
+        }
+
+        // handled above
+        if (didAnyContact){
+          player.swingConsumed = true;
+          endSwingImmediately();
+          break;
+        }
+      }
+    }
+
+    // Resolve pending plate-cross AFTER swing
+    for (const p of derbyPitches){
+      if (!p.alive) continue;
+      if (!p.pendingPlate) continue;
+
+      p.pendingPlate = false;
+      p.alive = false;
+      applyDerbyPitchResult(p, band);
+    }
+
+    for (let i = derbyPitches.length - 1; i >= 0; i--) if (!derbyPitches[i].alive) derbyPitches.splice(i, 1);
+
+    updateDerbyHits(moveDt);
+    updateDerbyHUD();
+  }
+
+  function drawMenu(W, H){ 
+    ctx.save();
+    const bg = IMG.derbyBg || IMG.bg;
+    if (bg) drawImageCover(bg, W, H);
+    else { ctx.fillStyle = "#101a3a"; ctx.fillRect(0,0,W,H); }
+    ctx.restore();
+  }
+
+  function drawDerby(ctx, W, H){
+    let camX = 0, camY = 0;
+    if (shakeT > 0){
+      camX = (Math.random()*2 - 1) * shakeMag;
+      camY = (Math.random()*2 - 1) * shakeMag;
+    }
+
+    ctx.save();
+    ctx.translate(camX, camY);
+
+    const bg = IMG.derbyBg || IMG.bg;
+    if (bg) drawImageCover(bg, W, H);
+    else { ctx.fillStyle = "#101a3a"; ctx.fillRect(0,0,W,H); }
+
+    // Derby world matches Story pixel-for-pixel (no extra zoom)
+
+    const plate = getPlate(W, H);
+    const band  = getContactBandFromPlate(W, H);
+    let zone = getStrikeZoneFromPlate(W, H);
+    lastZone = zone;
+
+    const aimPt = getAimPoint(zone);
+    const aimPenalty01 = clamp01((aimStillT - AIM_STILL_T_START) / Math.max(0.0001, (AIM_STILL_T_FULL - AIM_STILL_T_START)));
+    const baseBatR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
+    const batR = baseBatR * (1 - AIM_PENALTY_BAT_SHRINK * aimPenalty01);
+
+    // Strike zone
+    if (STRIKE_ZONE_VISIBLE){
+      ctx.save();
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = "#00ffff";
+      ctx.fillRect(zone.x, zone.y, zone.w, zone.h);
+      ctx.globalAlpha = 0.92;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(0,255,255,0.95)";
+      ctx.strokeRect(zone.x, zone.y, zone.w, zone.h);
+
+      ctx.globalAlpha = 0.28;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.strokeRect(zone.x - CHASE_MARGIN, zone.y - CHASE_MARGIN, zone.w + CHASE_MARGIN*2, zone.h + CHASE_MARGIN*2);
+      ctx.restore();
+    }
+
+    // Bat circle
+    ctx.save();
+    ctx.globalAlpha = 0.20;
+    ctx.fillStyle = "rgba(0,0,0,0.60)";
+    ctx.beginPath();
+    ctx.arc(aimPt.x + 2, aimPt.y + 2, batR, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = "rgba(255,255,255,0.90)";
+    ctx.beginPath();
+    ctx.arc(aimPt.x, aimPt.y, batR, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.90;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(255,255,255,0.92)";
+    ctx.beginPath();
+    ctx.arc(aimPt.x, aimPt.y, batR, 0, Math.PI*2);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.70;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(aimPt.x - 14, aimPt.y);
+    ctx.lineTo(aimPt.x + 14, aimPt.y);
+    ctx.moveTo(aimPt.x, aimPt.y - 14);
+    ctx.lineTo(aimPt.x, aimPt.y + 14);
+    ctx.stroke();
+    ctx.restore();
+
+    // plate marker
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.ellipse(plate.x, plate.y + 18, 46, 16, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // Pitcher
+    const pr = getPitcherRect(W, H);
+    const pimg = (derby.pose === "windup") ? IMG.pitcherWindup : IMG.pitcherPitch;
+    if (pimg){
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.ellipse(pr.x + pr.w*0.52, pr.y + pr.h*0.88, pr.w*0.26, pr.h*0.10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.55)";
+      ctx.shadowBlur = 14;
+      ctx.shadowOffsetY = 6;
+      ctx.drawImage(pimg, pr.x, pr.y, pr.w, pr.h);
+      ctx.restore();
+    }
+
+    // Player (re-use story pose logic)
+    const useSwingPose = player.swingPoseTimer > 0;
+    const plImg = useSwingPose ? IMG.pSwingFollow : IMG.player;
+    if (plImg){
+      ctx.save();
+      const px = player.x, py = player.y;
+      if (player.facing === -1){
+        ctx.translate(px + player.w/2, 0);
+        ctx.scale(-1, 1);
+        ctx.translate(-(px + player.w/2), 0);
+      }
+      ctx.drawImage(plImg, px, py, player.w, player.h);
+      ctx.restore();
+    }
+
+    // Batted balls
+    const ballImg = IMG.ball;
+    for (const h of derbyHits){
+      if (!h.alive) continue;
+      const size = h.r * 2;
+      if (ballImg) ctx.drawImage(ballImg, h.x - h.r, h.y - h.r, size, size);
+      else { ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill(); }
+    }
+
+    // Pitches
+    for (const b of derbyPitches){
+      if (!b.alive) continue;
+      const size = b.r * 2;
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y + b.r * 0.60, b.r * 0.92, b.r * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      if (ballImg) ctx.drawImage(ballImg, b.x - b.r, b.y - b.r, size, size);
+      else { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fillStyle = "#ff3b3b"; ctx.fill(); }
+    }
+
+    // popups (shared draw)
+    for (const p of popups){
+      const t = clamp01(p.t / p.life);
+      const a = 1 - t;
+      const bump = 1 + Math.sin(Math.min(1, t) * Math.PI) * 0.20;
+
+      ctx.save();
+      ctx.globalAlpha = 0.95 * a;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(0,0,0,0.55)";
+      ctx.shadowBlur = 10;
+
+      const fontSize = p.kind === "perfect" ? 34 : p.kind === "good" ? 28 : 24;
+      ctx.font = `950 ${Math.round(fontSize * bump)}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.fillStyle =
+        p.kind === "perfect" ? "#ffd54a" :
+        p.kind === "good" ? "#7cf7ff" :
+        p.kind === "ball" ? "#7cf7ff" :
+        p.kind === "strike" ? "#ff6b6b" :
+        "#ffffff";
+
+      const safeX = clamp(p.x, 50, W - 50);
+      ctx.fillText(p.text, safeX, p.y);
+      ctx.restore();
+    }
+
+    if (derby.over){
+      ctx.save();
+      ctx.globalAlpha = 0.68;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(0,0,0,0.55)";
+      ctx.shadowBlur = 12;
+      ctx.font = "950 44px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.fillText("DERBY OVER", W/2, H*0.40);
+      ctx.font = "850 22px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.fillText(`HR ${derby.homeruns}`, W/2, H*0.40 + 54);
+      ctx.font = "750 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.fillText("Tap RESTART to play again • Esc for Menu", W/2, H*0.40 + 92);
+      ctx.restore();
+    }
+
+ctx.restore();
+  }
+
+
+// Skills
   function useSkillV(zone){
+    if (gameMode === "derby") return;
     if (player.skillVCD > 0) return;
     player.skillVCD = player.skillVCDDur * upgrades.cdMul;
     fxVertT = 0.22;
@@ -1380,6 +2406,7 @@ function getStrikeZoneFromPlate(W, H){
   }
 
   function useSkillH(zone){
+    if (gameMode === "derby") return;
     if (player.skillHCD > 0) return;
     player.skillHCD = player.skillHCDDur * upgrades.cdMul;
     fxHorzT = 0.22;
@@ -1511,42 +2538,36 @@ function startLevel(lv){
     return (e.key || "").toLowerCase();
   }
 
-  window.addEventListener("keydown", (e) => {
-    const k = keyName(e);
+const keyDown = new Map(); // code -> boolean
 
-    if (e.repeat) return;
-    if (heldKeys.has(k)) return;
-    heldKeys.add(k);
+window.addEventListener("keydown", (e) => {
+  const code = e.code || "";
 
-    if (k === "r"){ resetRun(); return; }
+  if (code === "Escape") { showMenu(); return; }
 
-    if (upgradeOpen){
-      if (k === "1") chooseUpgradeByIndex(0);
-      if (k === "2") chooseUpgradeByIndex(1);
-      if (k === "3") chooseUpgradeByIndex(2);
-      return;
-    }
+  if (gameMode === "menu") {
+    return;
+  }
 
-    if (k === "t") toggleStance();
-    if (k === "a") setStance("righty");
-    if (k === "d") setStance("lefty");
+  // One-shot actions: fire once per physical press
+  if (!e.repeat && code === "KeyJ") input.swing = true;
+  if (!e.repeat && code === "KeyK") input.skillV = true;
+  if (!e.repeat && code === "KeyL") input.skillH = true;
 
-    if (k === "j") input.swing = true;
-    if (k === "k") input.skillV = true;
-    if (k === "l") input.skillH = true;
+  keyDown.set(code, true);
 
-    const step = 0.11;
-    if (e.key === "ArrowLeft")  aim.nx = clamp(aim.nx - step, -1, 1);
-    if (e.key === "ArrowRight") aim.nx = clamp(aim.nx + step, -1, 1);
-    if (e.key === "ArrowUp")    aim.ny = clamp(aim.ny - step, -1, 1);
-    if (e.key === "ArrowDown")  aim.ny = clamp(aim.ny + step, -1, 1);
+  // aim keys (continuous is fine)
+  const step = 0.11;
+  if (code === "ArrowLeft")  aim.nx = clamp(aim.nx - step, -1, 1);
+  if (code === "ArrowRight") aim.nx = clamp(aim.nx + step, -1, 1);
+  if (code === "ArrowUp")    aim.ny = clamp(aim.ny - step, -1, 1);
+  if (code === "ArrowDown")  aim.ny = clamp(aim.ny + step, -1, 1);
+});
 
-    if (e.key.startsWith("Arrow")){
-      const r = joyEl.getBoundingClientRect();
-      const maxR = (Math.min(r.width, r.height) * 0.5) - 18;
-      setKnob(aim.nx * maxR, aim.ny * maxR);
-    }
-  });
+window.addEventListener("keyup", (e) => {
+  keyDown.set(e.code || "", false);
+});
+
 
   window.addEventListener("keyup", (e) => {
     heldKeys.delete(keyName(e));
@@ -1559,7 +2580,11 @@ function startLevel(lv){
 
   // Step
   function step(dt, W, H){
+    if (gameMode === "menu") return;
+    if (stepCountdown(dt)) return;
+    if (gameMode === "derby") { stepDerby(dt, W, H); return; }
     if (upgradeOpen) return;
+    if (hp <= 0) return;
 
     if (hitStop > 0){
       hitStop -= dt;
@@ -1580,8 +2605,8 @@ function startLevel(lv){
       comboTimer -= sdt;
       if (comboTimer <= 0) combo = 0;
     }
-
-    if (player.swingCD > 0) player.swingCD = Math.max(0, player.swingCD - sdt);
+    // No swing cooldown
+    player.swingCD = 0;
     player.skillVCD = Math.max(0, player.skillVCD - sdt);
     player.skillHCD = Math.max(0, player.skillHCD - sdt);
 
@@ -1746,7 +2771,7 @@ function startLevel(lv){
 
         if (b.y + b.r >= band.bot){
           const hittableNow = swingActive && !player.swingConsumed &&
-            circleRectHit(b.x, b.y, b.r, expandedZone.x, expandedZone.y, expandedZone.w, expandedZone.h);
+            circleRectHit(b.x, b.y, b.r, derbyHitZone.x, derbyHitZone.y, derbyHitZone.w, derbyHitZone.h);
 
           if (hittableNow){
             b.pendingPlate = true;
@@ -1807,8 +2832,8 @@ function startLevel(lv){
       const baseBatR = BAT_R_BASE + upgrades.hitboxBonus * BAT_R_PER_UPG;
       const batR = baseBatR * (1 - AIM_PENALTY_BAT_SHRINK * aimPenalty01);
 
-      const perfectWindow = PERFECT_W + upgrades.perfectBonus;
-      const goodWindow    = GOOD_W + upgrades.perfectBonus;
+      const perfectWindow = PERFECT_W;
+      const goodWindow    = GOOD_W;
 
       const timing01 = clamp01(player.swingAge / Math.max(0.0001, player.swingWindow));
       const timeGrade =
@@ -1816,10 +2841,19 @@ function startLevel(lv){
         (player.swingAge <= goodWindow)    ? "good" :
         "normal";
 
-      const thrPerfect = lerp(OVERLAP_PERFECT, 0.98, aimPenalty01);
-      const thrGood    = lerp(OVERLAP_GOOD,    0.88, aimPenalty01);
+      const thrPerfect = lerp(OVERLAP_PERFECT, 0.92, aimPenalty01);
+      const thrGood    = lerp(OVERLAP_GOOD,    0.82, aimPenalty01);
 
       const pool = boss.alive ? bossPitches : balls;
+      const STORY_HIT_PAD = 8; // try 6–12
+      const hitZone = {
+        x: zone.x - STORY_HIT_PAD,
+        y: zone.y - STORY_HIT_PAD,
+        w: zone.w + STORY_HIT_PAD * 2,
+        h: zone.h + STORY_HIT_PAD * 2
+      };
+      const STORY_MIN_CONTACT_FRAC = 0.33; // higher = harder (0.28–0.40 sweet spot)
+
 
       let didAnyContact = false;
 
@@ -1827,26 +2861,42 @@ function startLevel(lv){
         if (!b.alive) continue;
         if (b.lastHitSwingToken === swingToken) continue;
 
-        const inHittable = circleRectHit(b.x, b.y, b.r, expandedZone.x, expandedZone.y, expandedZone.w, expandedZone.h);
+        const inHittable = circleRectHit(b.x, b.y, b.r, hitZone.x, hitZone.y, hitZone.w, hitZone.h);
         if (!inHittable) continue;
 
         const d = Math.hypot(b.x - aimPt.x, b.y - aimPt.y);
-        constz = 0
 
-        const overlapA = circleOverlapArea(b.r, batR, d);
-        const batA = Math.PI * batR * batR;
-        const frac = overlapA / (batA || 1);
-        if (frac <= 0.001) continue;
+
+const overlapA = circleOverlapArea(b.r, batR, d);
+if (overlapA <= 0) continue;
+
+const ballA = Math.PI * b.r * b.r;
+const batA  = Math.PI * batR * batR;
+
+// Normalize by smaller area so "solid contact" can actually reach 1.0
+const frac = overlapA / Math.max(1e-6, Math.min(ballA, batA));
+
+// Tune this. Start low.
+if (frac < STORY_MIN_CONTACT_FRAC) continue;
+
+
+
 
         const overlapGrade =
           (frac >= thrPerfect) ? "perfect" :
           (frac >= thrGood)    ? "good" :
           "normal";
 
-        const grade =
-          (overlapGrade === "perfect" || timeGrade === "perfect") ? "perfect" :
-          (overlapGrade === "good"    || timeGrade === "good")    ? "good" :
-          "normal";
+        let grade = "normal";
+        if (
+          (timeGrade === "perfect" && (overlapGrade === "perfect" || overlapGrade === "good")) ||
+          (overlapGrade === "perfect" && (timeGrade === "perfect" || timeGrade === "good"))
+        ){
+          grade = "perfect";
+        } else if (timeGrade !== "normal" && overlapGrade !== "normal"){
+          grade = "good";
+        }
+
 
         b.lastHitSwingToken = swingToken;
         b.pendingPlate = false;
@@ -1969,6 +3019,10 @@ function startLevel(lv){
 
   // Draw
   function draw(W, H){
+    if (gameMode === "menu") { drawMenu(W, H); return; }
+    if (gameMode === "derby") { drawDerby(ctx, W, H); drawCountdownOverlay(ctx, W, H); return; }
+
+
     let camX = 0, camY = 0;
     if (shakeT > 0){
       camX = (Math.random()*2 - 1) * shakeMag;
@@ -2303,18 +3357,23 @@ function startLevel(lv){
     }
 
     ctx.restore();
+
+    drawCountdownOverlay(ctx, W, H);
   }
 
   // Loop
   let last = 0;
   function loop(ts){
-    const W = canvas.clientWidth;
-    const H = canvas.clientHeight;
+    const W = DESIGN_W;
+    const H = DESIGN_H;
 
     const dt = Math.min(0.033, (ts - last) / 1000 || 0);
     last = ts;
 
-    if (hp > 0) step(dt, W, H);
+    step(dt, W, H);
+
+    // Camera makes the fixed DESIGN world fill any screen (cover + crop).
+    applyCamera(ctx);
     draw(W, H);
 
     requestAnimationFrame(loop);
@@ -2324,6 +3383,7 @@ function startLevel(lv){
   Promise.all(ASSETS).finally(() => {
     resize();
     resetRun();
+    showMenu();
     requestAnimationFrame(loop);
   });
 
